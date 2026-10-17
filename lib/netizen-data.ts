@@ -1,4 +1,4 @@
-export type NavId = 'feed' | 'videos' | 'messages' | 'notifications' | 'taxis' | 'search' | 'funds' | 'petitions' | 'jobs' | 'groups' | 'profile'
+export type NavId = 'feed' | 'khuluma' | 'messages' | 'notifications' | 'taxis' | 'search' | 'funds' | 'petitions' | 'jobs' | 'groups' | 'profile'
 
 export const stories = [
   { image: '/story-1.png', tag: 'Event', title: 'Local events happening this weekend' },
@@ -18,9 +18,9 @@ export const posts = [
   { avatar: '/avatar-1.png', name: 'Thabo Nkosi', meta: '@thabo.n · 1 hr', body: 'Small steps, meaningful change. Proud of what our neighbourhood can do together.', image: '/post-2.png', likes: 86 },
 ]
 
-type IconName = 'home' | 'play' | 'message' | 'bell' | 'car' | 'search' | 'wallet' | 'file' | 'briefcase' | 'users' | 'user'
+type IconName = 'home' | 'megaphone' | 'message' | 'bell' | 'car' | 'search' | 'wallet' | 'file' | 'scrolltext' | 'briefcase' | 'users' | 'user'
 export const destinations: ReadonlyArray<{ id: NavId; label: string; icon: IconName; badge?: number }> = [
-  { id: 'feed', label: 'Feed', icon: 'home' }, { id: 'videos', label: 'Videos', icon: 'play' }, { id: 'messages', label: 'Messages', icon: 'message' }, { id: 'notifications', label: 'Notifications', icon: 'bell' }, { id: 'taxis', label: 'Taxis', icon: 'car' }, { id: 'search', label: 'Search', icon: 'search' }, { id: 'funds', label: 'Funds', icon: 'wallet' }, { id: 'petitions', label: 'Petitions', icon: 'file' }, { id: 'jobs', label: 'Jobs', icon: 'briefcase' }, { id: 'groups', label: 'Groups', icon: 'users' }, { id: 'profile', label: 'Profile', icon: 'user' },
+  { id: 'feed', label: 'Feed', icon: 'home' }, { id: 'khuluma', label: 'Khuluma', icon: 'megaphone' }, { id: 'messages', label: 'Messages', icon: 'message' }, { id: 'notifications', label: 'Notifications', icon: 'bell' }, { id: 'taxis', label: 'Taxis', icon: 'car' }, { id: 'search', label: 'Search', icon: 'search' }, { id: 'funds', label: 'Funds', icon: 'wallet' }, { id: 'petitions', label: 'Petitions', icon: 'scrolltext' }, { id: 'jobs', label: 'Jobs', icon: 'briefcase' }, { id: 'groups', label: 'Groups', icon: 'users' }, { id: 'profile', label: 'Profile', icon: 'user' },
 ] as const
 export const destinationLabel = (id: string) => destinations.find((item) => item.id === id)?.label ?? 'Netizen'
 export const destinationIcon = (id: string) => destinations.find((item) => item.id === id)?.icon ?? 'users'

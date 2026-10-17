@@ -1,4 +1,5 @@
 import { FeedPage } from "./destinations/feed-page";
+import { KhulumaPage } from "./destinations/khuluma-page";
 import { FundsPage } from "./destinations/funds-page";
 import { GroupsPage } from "./destinations/groups-page";
 import { JobsPage } from "./destinations/jobs-page";
@@ -12,6 +13,7 @@ import { VideosPage } from "./destinations/videos-page";
 
 export {
   FeedPage,
+  KhulumaPage,
   FundsPage,
   GroupsPage,
   JobsPage,
@@ -25,7 +27,7 @@ export {
 };
 
 export const destinationPages = {
-  videos: VideosPage,
+  khuluma: KhulumaPage,
   messages: MessagesPage,
   notifications: NotificationsPage,
   taxis: TaxisPage,

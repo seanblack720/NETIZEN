@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 export function Avatar({
   src,
   alt,
@@ -9,5 +11,14 @@ export function Avatar({
   alt: string;
   className?: string;
 }) {
-  return <img className={className} src={src} alt={alt} />;
+  const [imgSrc, setImgSrc] = useState(src);
+
+  return (
+    <img
+      className={className}
+      src={imgSrc}
+      alt={alt}
+      onError={() => setImgSrc("/shadow.png")}
+    />
+  );
 }

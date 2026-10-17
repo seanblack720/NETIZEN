@@ -109,11 +109,10 @@ export function ReplyModal({
                             src={reply.userImage}
                             alt={reply.userName || "User"}
                             className="h-full w-full object-cover"
+                            onError={(e) => { (e.target as HTMLImageElement).src = "/shadow.png"; }}
                           />
                         ) : (
-                          <span>
-                            {(reply.userName || "U").slice(0, 2).toUpperCase()}
-                          </span>
+                          <img src="/shadow.png" alt={reply.userName || "User"} className="h-full w-full object-cover" />
                         )}
                       </div>
 

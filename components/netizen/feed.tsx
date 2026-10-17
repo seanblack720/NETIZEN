@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Heart, MessageCircle, MoreHorizontal, Plus, Send } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { groups } from "@/lib/netizen-data";
 import { Avatar } from "./app-shell";
@@ -20,6 +20,19 @@ export type FeedPost = {
   comments?: number;
   shares?: number;
   likedBy?: string[];
+  opened?: string[];
+  reshareOf?: string | null;
+  reshareCount?: number;
+  reshareData?: {
+    originalPostId?: string;
+    originalContent?: string;
+    originalImages?: string[];
+    originalUserName?: string | null;
+    originalUserImage?: string | null;
+    originalUserId?: string | null;
+  } | null;
+  highlightCount?: number;
+  highlightedByUser?: string[];
   createdAt?: string | Date;
 };
 
@@ -36,10 +49,10 @@ export function Section({
 }) {
   return (
     <section className={className ?? ""}>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="m-0 text-sm text-slate-500 tracking-wide">{title}</h2>
+      <div className="mb-3 flex items-center justify-between px-4">
+        <h2 className="m-0 text-sm tracking-wide text-slate-500">{title}</h2>
         {action && (
-          <button className="border-0 bg-transparent text-emerald-700 font-bold">{action}</button>
+          <button className="border-0 bg-transparent text-sm font-bold text-emerald-700">{action}</button>
         )}
       </div>
       {children}
@@ -111,6 +124,7 @@ export function Feed({
   const [commentingId, setCommentingId] = useState<string | null>(null);
   const [selectedPost, setSelectedPost] = useState<FeedPost | null>(null);
   const [postLikes, setPostLikes] = useState<Record<string, { likes: number; hasLiked: boolean }>>({});
+  const [postHighlights, setPostHighlights] = useState<Record<string, { highlightCount: number; highlighted: boolean }>>({});
 
   useEffect(() => {
     async function loadSession() {
@@ -390,10 +404,9 @@ export function Feed({
 
       if (!wasLiked && post.userId && post.userId !== sessionUserId) {
         await createClientNotification({
-          senderId: sessionUserId,
+          actorId: sessionUserId,
           receiverId: post.userId,
           creatorId: post.userId,
-          actorId: sessionUserId,
           actorName: "You",
           type: "post-reaction",
           postId: String(postId),
@@ -422,6 +435,62 @@ export function Feed({
         }
       }));
       setError(err instanceof Error ? err.message : "Unable to update like");
+    }
+  }
+
+  async function handleHighlight(post: FeedPost) {
+    const postId = getPostId(post);
+    if (!postId) return;
+    if (!sessionUserId) {
+      setError("Please sign in to highlight posts.");
+      return;
+    }
+
+    const wasHighlighted = Array.isArray(post.highlightedByUser)
+      ? post.highlightedByUser.includes(sessionUserId)
+      : false;
+
+    const currentHighlights = post.highlightCount ?? 0;
+
+    setPostHighlights(prev => ({
+      ...prev,
+      [postId]: {
+        highlightCount: wasHighlighted ? currentHighlights - 1 : currentHighlights + 1,
+        highlighted: !wasHighlighted
+      }
+    }));
+
+    try {
+      const response = await fetch(`/api/posts/${postId}/highlight`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ highlighted: !wasHighlighted }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to update highlight");
+      }
+
+      updatePost(postId, { highlightCount: !wasHighlighted ? currentHighlights + 1 : currentHighlights - 1 });
+      setPostHighlights(prev => ({
+        ...prev,
+        [postId]: {
+          highlightCount: !wasHighlighted ? currentHighlights + 1 : currentHighlights - 1,
+          highlighted: !wasHighlighted
+        }
+      }));
+      setError("");
+    } catch (err) {
+      console.error("Highlight failed:", err);
+      setPostHighlights(prev => ({
+        ...prev,
+        [postId]: {
+          highlightCount: currentHighlights,
+          highlighted: wasHighlighted
+        }
+      }));
+      setError(err instanceof Error ? err.message : "Unable to highlight post");
     }
   }
 
@@ -511,6 +580,36 @@ export function Feed({
     }
   }
 
+  async function handleReshare(post: FeedPost) {
+    const postId = getPostId(post);
+
+    if (!postId || !sessionUserId) return;
+
+    try {
+      const response = await fetch(`/api/posts/${postId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reshare" }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.message || "Unable to reshare post");
+      }
+
+      // Add the reshared post to the feed
+      if (data?.post) {
+        prependPost(data.post);
+      }
+      setError("");
+    } catch (err) {
+      console.error("Reshare failed:", err);
+      setError(err instanceof Error ? err.message : "Unable to reshare post");
+    }
+  }
+
   function handleStatusImageChange(file?: File) {
     setStatusError("");
     if (!file) return;
@@ -564,22 +663,10 @@ export function Feed({
     }
   }
 
-  useEffect(() => {
-    if (!incomingPost || !incomingPost.content) return;
-
-    setPosts((currentPosts) => {
-      const id = getPostId(incomingPost);
-      const hasSame = currentPosts.some((item) => getPostId(item) === id);
-      if (hasSame) return currentPosts;
-
-      return [{ ...incomingPost, likes: Number(incomingPost.likes ?? 0), comments: Number(incomingPost.comments ?? 0), shares: Number(incomingPost.shares ?? 0), likedBy: Array.isArray(incomingPost.likedBy) ? incomingPost.likedBy : [], images: Array.isArray(incomingPost.images) ? incomingPost.images : [] }, ...currentPosts];
-    });
-  }, [incomingPost]);
-
   return (
-    <div className="max-w-[880px] ">
+    <div className="mx-auto w-full max-w-[880px] px-4">
       {error && (
-        <div className="mb-4 rounded-2xl border border-[#f3d7d0] bg-[#fff4f1] px-3 py-2 text-sm text-[#7f362f] transition-all duration-300" style={{ display: error ? 'block' : 'none' }}>
+        <div className="mb-4 rounded-2xl border border-[#f3d7d0] bg-[#fff4f1] px-3 py-2 text-sm text-[#7f362f] transition-all duration-300">
           {error}
         </div>
       )}
@@ -593,8 +680,12 @@ export function Feed({
         </div>
       )}
 
-      <Section title="ADDED NETIZENS STATUS" className="mt-0 sm:mt-8">
-        <div className="flex gap-3 overflow-x-auto pb-1">
+      <Section title="ADDED NETIZENS STATUS" className="mt-0 sm:mt-6">
+        <div
+          className="mx-2 flex gap-2.5 overflow-x-auto px-3 pb-2 sm:mx-0 sm:px-4
+                     snap-x snap-proximity scroll-px-7 sm:scroll-px-9
+                     [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           <button
             type="button"
             onClick={() => {
@@ -604,7 +695,9 @@ export function Feed({
               }
               setStatusModalOpen(true);
             }}
-            className="flex h-[184px] min-w-[132px] shrink-0 flex-col items-center justify-center gap-2 rounded-[17px] border-2 border-dashed border-[#b9d9c6] bg-[#f1faf4] text-[#168b45] transition hover:bg-[#e7f7ed] active:scale-95"
+            className="flex h-[184px] w-[132px] shrink-0 snap-start flex-col items-center justify-center gap-2
+                       rounded-[17px] border-2 border-dashed border-[#b9d9c6] bg-[#f1faf4] text-[#168b45]
+                       transition hover:bg-[#e7f7ed] active:scale-95 first:ml-auto sm:h-[210px] sm:w-[150px]"
             aria-label="Add status"
           >
             <span className="grid h-11 w-11 place-items-center rounded-full bg-[#1c9d57] text-white">
@@ -616,7 +709,8 @@ export function Feed({
           {statuses.map((status) => (
             <button
               key={status.id || status._id}
-              className="relative h-[184px] min-w-[132px] shrink-0 overflow-hidden rounded-[17px] border-0 bg-[#20342d] p-0 text-left text-white"
+              className="relative h-[184px] w-[132px] shrink-0 snap-start overflow-hidden rounded-[17px]
+                         border-0 bg-[#20342d] p-0 text-left text-white last:mr-auto sm:h-[210px] sm:w-[150px]"
               onClick={() => onNavigate?.("feed")}
             >
               <img
@@ -624,7 +718,7 @@ export function Feed({
                 alt={status.title || "Status"}
                 className="h-full w-full object-cover brightness-[0.75]"
               />
-              <div className="absolute left-0 right-0 top-[45%] bottom-0 bg-gradient-to-b from-transparent to-black/80" />
+              <div className="absolute inset-x-0 bottom-0 top-[45%] bg-gradient-to-b from-transparent to-black/80" />
               <span className="absolute left-2 top-2 z-10 rounded-[18px] bg-emerald-500 px-2 py-1 text-xs font-semibold">
                 {status.tag || "Update"}
               </span>
@@ -635,34 +729,48 @@ export function Feed({
           ))}
 
           {statuses.length === 0 && (
-            <div className="flex h-[184px] min-w-[132px] shrink-0 items-center rounded-[17px] border border-[#e5ece7] bg-white px-4 text-xs text-[#68776f]">
+            <div
+              className="flex h-[184px] w-[160px] shrink-0 items-center rounded-[17px] border border-[#e5ece7]
+                         bg-white px-4 text-xs text-[#68776f] last:mr-auto sm:h-[210px]"
+            >
               No statuses yet — be the first to post one.
             </div>
           )}
         </div>
       </Section>
 
-      <Section title="GROUPS" action="See all" className="mt-3 sm:mt-6">
-        <div className="flex gap-3 overflow-x-auto pb-2 md:flex-col md:overflow-visible">
+      <Section title="GROUPS" action="See all" className="mt-2 sm:mt-4">
+        <div
+          className="mx-2 flex gap-2.5 overflow-x-auto px-3 pb-2 sm:mx-0 sm:px-4
+                     snap-x snap-proximity scroll-px-7 sm:scroll-px-9
+                     [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           {groups.map((group) => (
             <button
               key={group.name}
               onClick={() => onNavigate?.("groups")}
-              className="flex shrink-0 items-center gap-4 min-w-[260px] w-fit p-4 border border-gray-200 rounded-[17px] bg-white shadow-[0_3px_12px_rgba(25,58,45,0.03)] text-left md:min-w-0"
+              className="flex w-[300px] shrink-0 snap-start items-center gap-3 rounded-[17px] border border-gray-200
+                         bg-white p-3.5 text-left shadow-[0_3px_12px_rgba(25,58,45,0.03)]
+                         first:ml-auto last:mr-auto sm:w-[340px]"
             >
-              <Avatar src={group.image} alt={group.name} className="w-[58px] h-[58px] rounded-[14px] object-cover" />
-              <div>
+              <Avatar
+                src={group.image}
+                alt={group.name}
+                className="h-[58px] w-[58px] shrink-0 rounded-[14px] object-cover"
+              />
 
-              <div>
-                <b className="block text-base">{group.name}</b>
-                <span className="block mt-1 text-sm text-slate-500">{group.members}</span>
+              <div className="min-w-0 flex-1">
+                <b className="block truncate text-base">{group.name}</b>
+                <span className="mt-1 block text-sm text-slate-500">{group.members}</span>
               </div>
-              <div className="flex items-center ml-auto">
-                <Avatar src="/avatar-1.png" alt="" className="w-7 h-7 rounded-full -ml-2 border-2 border-white object-cover" />
-                <Avatar src="/avatar-2.png" alt="" className="w-7 h-7 rounded-full -ml-2 border-2 border-white object-cover" />
-                <Avatar src="/avatar-3.png" alt="" className="w-7 h-7 rounded-full -ml-2 border-2 border-white object-cover" />
-                <i className="grid place-items-center w-10 h-10 ml-1 rounded-full bg-emerald-100 text-emerald-700 font-bold">{group.more}</i>
-              </div>
+
+              <div className="flex shrink-0 items-center pl-2">
+                <Avatar src="/avatar-1.png" alt="" className="h-7 w-7 rounded-full border-2 border-white object-cover" />
+                <Avatar src="/avatar-2.png" alt="" className="-ml-2 h-7 w-7 rounded-full border-2 border-white object-cover" />
+                <Avatar src="/avatar-3.png" alt="" className="-ml-2 h-7 w-7 rounded-full border-2 border-white object-cover" />
+                <i className="-ml-2 grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-emerald-100 text-[11px] font-bold not-italic text-emerald-700">
+                  {group.more}
+                </i>
               </div>
             </button>
           ))}
@@ -671,9 +779,9 @@ export function Feed({
 
       <Section title="RECENT POSTS" className="mt-3 sm:mt-6">
         {loading ? (
-          <div className="rounded-2xl border border-[#edf3ee] bg-white p-5 text-sm text-[#5b6b62]">Loading posts...</div>
+          <div className="mx-3 rounded-2xl border border-[#edf3ee] bg-white p-5 text-sm text-[#5b6b62]">Loading posts...</div>
         ) : (
-          <div className="flex flex-col gap-3.5">
+          <div className="px-4 flex flex-col gap-1">
             {posts.map((post) => {
               const postId = getPostId(post);
               const imageList = Array.isArray(post.images)
@@ -681,6 +789,9 @@ export function Feed({
                 : [];
               const isLiked = Boolean(
                 sessionUserId && Array.isArray(post.likedBy) && post.likedBy.includes(sessionUserId),
+              );
+              const isHighlighted = Boolean(
+                sessionUserId && Array.isArray(post.highlightedByUser) && post.highlightedByUser.includes(sessionUserId),
               );
 
               return (
@@ -690,12 +801,15 @@ export function Feed({
                   postId={postId}
                   imageList={imageList}
                   isLiked={isLiked}
+                  isHighlighted={isHighlighted}
                   sessionUserId={sessionUserId}
                   onOpenProfile={onOpenProfile}
                   onSelectPost={setSelectedPost}
                   onLike={handleLike}
+                  onHighlight={handleHighlight}
                   onComment={handleComment}
                   onShare={handleShare}
+                  onReshare={handleReshare}
                   onCommentDraftChange={(currentPostId, value) =>
                     setCommentDrafts((current) => ({ ...current, [currentPostId]: value }))
                   }
@@ -705,6 +819,7 @@ export function Feed({
                     setCommentingId((current) => (current === currentPostId ? null : currentPostId))
                   }
                   postLikes={postLikes}
+                  postHighlights={postHighlights}
                   onHandleComment={handleComment}
                 />
               );

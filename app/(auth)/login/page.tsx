@@ -3,11 +3,21 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { Eye, EyeOff, Lock, Mail } from "lucide-react";
+
+// Swap this for your own photo, e.g. "/auth-bg.jpg" placed in /public.
+// A street / neighbourhood photo with some depth works best.
+const BG_IMAGE =
+  "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?auto=format&fit=crop&w=1200&q=80";
+
+const inputClass =
+  "h-14 w-full rounded-2xl border border-white/20 bg-white/10 pl-12 pr-4 text-base text-white placeholder:text-white/45 outline-none transition focus:border-white/60 focus:bg-white/15 focus:ring-4 focus:ring-white/10 disabled:cursor-not-allowed disabled:opacity-60";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -45,112 +55,128 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f5f7f4] text-[#11221a]">
-      <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[1.1fr_1fr]">
-        <section className="relative flex items-center justify-center overflow-hidden bg-gradient-to-br from-[#17a34a] via-[#15964a] to-[#0f6d3a] px-6 py-10 text-white sm:px-10 lg:px-14">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.22),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.12),transparent_30%)]" />
+    <main className="relative isolate min-h-[100dvh] overflow-hidden bg-[#0b3d27] text-white">
+      {/* Background photo: sharp at the top, blurred by the glass sheet below */}
+      <img
+        src={BG_IMAGE}
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 -z-20 h-full w-full object-cover"
+      />
+      <div className="absolute inset-0 -z-10 bg-gradient-to-b from-[#0b3d27]/30 via-[#0b3d27]/40 to-[#04170f]/95" />
+      <div className="absolute -left-24 top-1/3 -z-10 h-72 w-72 rounded-full bg-[#22c55e]/30 blur-3xl" />
+      <div className="absolute -right-24 top-10 -z-10 h-64 w-64 rounded-full bg-[#86efac]/20 blur-3xl" />
 
-          <div className="relative z-10 w-full max-w-xl">
-            <div className="mb-8 flex items-center gap-3">
-              <img src="/netwhite.png" alt="Netizen logo" className="h-10 w-10 rounded-xl object-cover" />
-              <span className="text-xl font-semibold">Netizen</span>
-            </div>
+      <div className="mx-auto flex min-h-[100dvh] w-full max-w-[430px] flex-col">
+        <header className="flex items-center gap-2.5 px-6 pt-[max(1.5rem,env(safe-area-inset-top))]">
+          <img
+            src="/netwhite.png"
+            alt="Netizen logo"
+            className="h-10 w-10 rounded-xl border border-white/25 bg-white/10 object-cover backdrop-blur-md"
+          />
+          <span className="text-xl font-semibold tracking-tight">Netizen</span>
+        </header>
 
-            <h1 className="max-w-[10ch] text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
-              Welcome back to your community.
-            </h1>
-
-            <p className="mt-5 max-w-lg text-base text-white/80 sm:text-lg">
-              Stay in the loop, join local conversations, and see what is happening around you.
-            </p>
-
-            <div className="mt-10 grid gap-4 sm:max-w-md">
-              {[
-                ["Community groups", "5.2k members active today"],
-                ["Local petitions", "12 new actions this week"],
-                ["Neighborhood events", "3 events near you"]
-              ].map(([title, detail]) => (
-                <div key={title} className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/65">{title}</p>
-                  <p className="mt-2 text-sm text-white/90">{detail}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+        <section className="flex flex-1 flex-col justify-end px-6 pb-8 pt-24">
+          <h1 className="text-[2.5rem] font-semibold leading-[1.05] tracking-tight">
+            Welcome back to your community.
+          </h1>
+          <p className="mt-3 max-w-[30ch] text-base text-white/75">
+            Catch up on local news, groups and events near you.
+          </p>
         </section>
 
-        <section className="flex items-center justify-center px-6 py-12 sm:px-8 lg:px-12">
-          <div className="w-full max-w-md">
-            <div className="mb-8">
-              <p className="text-sm font-medium uppercase tracking-[0.18em] text-[#3f7a59]">Welcome</p>
-              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-[#15271d]">Sign in</h2>
-            </div>
+        {/* Glass sheet */}
+        <section className="rounded-t-[2rem] border-x border-t border-white/25 bg-white/10 px-6 pb-[max(1.75rem,env(safe-area-inset-bottom))] pt-7 shadow-[0_-24px_60px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+          <div className="mx-auto mb-6 h-1 w-10 rounded-full bg-white/30" />
 
-            <form onSubmit={handleLogin} className="space-y-5" noValidate>
-              <div>
-                <label htmlFor="login-email" className="mb-2 block text-sm font-medium text-[#273a2f]">
-                  Email address
-                </label>
+          <h2 className="text-2xl font-semibold tracking-tight">Sign in</h2>
+
+          <form onSubmit={handleLogin} className="mt-5 space-y-4" noValidate>
+            <div>
+              <label htmlFor="login-email" className="mb-1.5 block text-sm font-medium text-white/80">
+                Email address
+              </label>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/60" />
                 <input
                   id="login-email"
                   type="email"
+                  inputMode="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="you@example.com"
                   autoComplete="email"
                   required
                   disabled={loading}
-                  className="w-full rounded-xl border border-[#dfe9e2] bg-white px-3.5 py-3 text-[15px] text-[#12221b] outline-none transition focus:border-[#1f9d58] focus:ring-4 focus:ring-[#1f9d58]/10 disabled:cursor-not-allowed disabled:bg-[#f3f5f4]"
+                  className={inputClass}
                 />
               </div>
+            </div>
 
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <label htmlFor="login-password" className="text-sm font-medium text-[#273a2f]">
-                    Password
-                  </label>
-                  <Link href="/forgot-password" className="text-sm font-medium text-[#167a42] hover:underline">
-                    Forgot password?
-                  </Link>
-                </div>
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label htmlFor="login-password" className="text-sm font-medium text-white/80">
+                  Password
+                </label>
+                <Link href="/forgot-password" className="text-sm font-medium text-white underline-offset-4 hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
+              <div className="relative">
+                <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/60" />
                 <input
                   id="login-password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="Enter your password"
                   autoComplete="current-password"
                   required
                   disabled={loading}
-                  className="w-full rounded-xl border border-[#dfe9e2] bg-white px-3.5 py-3 text-[15px] text-[#12221b] outline-none transition focus:border-[#1f9d58] focus:ring-4 focus:ring-[#1f9d58]/10 disabled:cursor-not-allowed disabled:bg-[#f3f5f4]"
+                  className={`${inputClass} pr-12`}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-white/60 transition hover:text-white"
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
               </div>
+            </div>
 
-              {error && (
-                <p className="rounded-xl border border-[#f0c7c7] bg-[#fff3f3] px-3.5 py-2.5 text-sm text-[#b42318]" role="alert">
-                  {error}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full rounded-xl bg-[#1c9d57] px-4 py-3 text-base font-semibold text-white transition hover:bg-[#138647] disabled:cursor-not-allowed disabled:bg-[#9ac7af]"
+            {error && (
+              <p
+                className="rounded-2xl border border-red-300/40 bg-red-500/20 px-4 py-3 text-sm text-red-50"
+                role="alert"
               >
-                {loading ? "Signing in..." : "Sign in"}
-              </button>
-            </form>
+                {error}
+              </p>
+            )}
 
-            <p className="mt-6 text-center text-sm text-[#54645d]">
-              Don&apos;t have an account?{" "}
-              <Link href="/register" className="font-semibold text-[#157b45] hover:underline">
-                Create one
-              </Link>
-            </p>
-            <p className="mt-3 text-center text-xs text-[#68776f]">
-              Staff? <Link href="/admin" className="font-semibold text-[#167a42] hover:underline">Open admin dashboard</Link>
-            </p>
-          </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="h-14 w-full rounded-2xl bg-white text-base font-semibold text-[#0b3d27] shadow-lg shadow-black/20 transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? "Signing in..." : "Sign in"}
+            </button>
+          </form>
+
+          <p className="mt-5 text-center text-sm text-white/70">
+            Don&apos;t have an account?{" "}
+            <Link href="/register" className="font-semibold text-white underline-offset-4 hover:underline">
+              Create one
+            </Link>
+          </p>
+          <p className="mt-2 text-center text-xs text-white/55">
+            Staff?{" "}
+            <Link href="/admin" className="font-semibold text-white/80 underline-offset-4 hover:underline">
+              Open admin dashboard
+            </Link>
+          </p>
         </section>
       </div>
     </main>

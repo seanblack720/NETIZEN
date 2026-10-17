@@ -103,9 +103,9 @@ export function ProfileModal({
         <section className="flex flex-col items-center py-8 text-center">
           <div className="h-24 w-24 overflow-hidden rounded-full bg-[#e8efe8] text-2xl font-semibold text-[#2f6b4f]">
             {userImage ? (
-              <img src={userImage} alt={userName || "User"} className="h-full w-full object-cover" />
+              <img src={userImage} alt={userName || "User"} className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = "/shadow.png"; }} />
             ) : (
-              <div className="flex h-full w-full items-center justify-center">{initials}</div>
+              <img src="/shadow.png" alt={userName || "User"} className="h-full w-full object-cover" />
             )}
           </div>
           <div className="mt-3 text-xl font-semibold text-[#111827]">{userName || "User"}</div>
@@ -140,9 +140,9 @@ export function ProfileModal({
                     <div className="flex items-start gap-3">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e8efe8] text-sm font-semibold text-[#2f6b4f]">
                         {userImage ? (
-                          <img src={userImage} alt={userName || "User"} className="h-full w-full object-cover" />
+                          <img src={userImage} alt={userName || "User"} className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = "/shadow.png"; }} />
                         ) : (
-                          initials
+                          <img src="/shadow.png" alt={userName || "User"} className="h-full w-full object-cover" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">

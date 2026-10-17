@@ -6,8 +6,8 @@ import {
   CarFront,
   FileText,
   Home,
+  Megaphone,
   MessageCircle,
-  PlayCircle,
   Search,
   Settings,
   Users,
@@ -25,7 +25,7 @@ import { PostButton } from "./post-button";
 
 const iconMap: Record<string, LucideIcon> = {
   home: Home,
-  play: PlayCircle,
+  megaphone: Megaphone,
   message: MessageCircle,
   bell: Bell,
   car: CarFront,
@@ -44,7 +44,7 @@ const navItems: Array<{
   badge?: number;
 }> = [
   { id: "feed", label: "Feed", icon: "home" },
-  { id: "videos", label: "Videos", icon: "play" },
+  { id: "khuluma", label: "Khuluma", icon: "megaphone" },
   { id: "messages", label: "Messages", icon: "message" },
   {
     id: "notifications",

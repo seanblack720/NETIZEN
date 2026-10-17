@@ -37,7 +37,7 @@ export function AppShell({
           <PrimaryNav active={active} onNavigate={onNavigate} />
         </div>
 
-        <main className="min-h-[calc(100vh-140px)] overflow-y-auto px-4 pb-[90px] pt-4">{children}</main>
+        <main className="min-h-[calc(100vh-140px)] overflow-y-auto pb-[90px] pt-4">{children}</main>
 
         <BottomNav active={active} onNavigate={onNavigate} onCreate={onCreate} />
       </>

@@ -27,6 +27,7 @@ type PostRecord = {
   comments?: number;
   shares?: number;
   likedBy?: string[];
+  opened?: string[];
   commentsList?: PostComment[];
   createdAt?: string | Date;
 };
@@ -283,6 +284,24 @@ export default function PostDetailPage() {
 
     await updatePostCount("share");
   }
+
+  useEffect(() => {
+    if (!postId) return;
+
+    async function recordView() {
+      try {
+        await fetch(`/api/posts/${postId}/view`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (err) {
+        console.error("Failed to record post view:", err);
+      }
+    }
+
+    recordView();
+  }, [postId]);
 
   const imageList = Array.isArray(post?.images)
     ? post.images.filter((image): image is string => typeof image === "string" && image.trim().length > 0)

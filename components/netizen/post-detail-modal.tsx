@@ -2,18 +2,20 @@
 
 import {
   Heart,
-  MessageCircle,
+  Star,
   Plus,
-  Send,
   X,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "./app-shell";
 import { ReplyModal } from "./reply-modal";
 import { useModalHistory } from "./use-modal-history";
 import { createClientNotification } from "@/lib/notifications-client";
+import { ShareModal } from "./share-modal";
+import { PostActionBar } from "./post-action-bar";
 
 type CommentReply = {
   _id?: string;
@@ -51,6 +53,20 @@ type FeedPost = {
   comments?: number;
   shares?: number;
   likedBy?: string[];
+  opened?: string[];
+  reactions?: Record<string, string> | null; // { [userId]: emoji }
+  reshareOf?: string | null;
+  reshareCount?: number;
+  reshareData?: {
+    originalPostId?: string;
+    originalContent?: string;
+    originalImages?: string[];
+    originalUserName?: string | null;
+    originalUserImage?: string | null;
+    originalUserId?: string | null;
+  } | null;
+  highlightCount?: number;
+  highlightedByUser?: string[];
   commentsList?: CommentItem[];
   createdAt?: string | Date;
 };
@@ -64,6 +80,9 @@ const reactionOptions = [
   { emoji: "😢", label: "Sad" },
   { emoji: "😡", label: "Angry" },
 ] as const;
+
+// A plain "like" (heart button) counts as this emoji when no specific reaction is saved
+const DEFAULT_LIKE_EMOJI = reactionOptions[1].emoji;
 
 function formatRelativeTime(value?: string | Date) {
   if (!value) return "Just now";
@@ -98,6 +117,172 @@ function countReplies(comment: CommentItem) {
   return Array.isArray(comment.replies) ? comment.replies.length : 0;
 }
 
+/* =========================================================
+   SWIPE HELPER
+   Horizontal swipe between slides. Vertical scrolling still
+   works (the element needs the `touch-pan-y` class).
+========================================================== */
+function useSwipe({
+  index,
+  count,
+  onChange,
+}: {
+  index: number;
+  count: number;
+  onChange: (next: number) => void;
+}) {
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const active = useRef(false);
+  const moved = useRef(false);
+  const startX = useRef(0);
+  const width = useRef(1);
+
+  const reset = () => {
+    active.current = false;
+    setDragging(false);
+    setDragX(0);
+  };
+
+  const handlers = {
+    onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
+      if (count < 2) return;
+      active.current = true;
+      moved.current = false;
+      startX.current = e.clientX;
+      width.current = e.currentTarget.clientWidth || 1;
+    },
+    onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!active.current) return;
+
+      let dx = e.clientX - startX.current;
+
+      if (!moved.current) {
+        if (Math.abs(dx) < 8) return; // still a tap
+        moved.current = true;
+        setDragging(true);
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId);
+        } catch {
+          /* ignore */
+        }
+      }
+
+      // Rubber-band at the first / last slide
+      const atStart = index === 0 && dx > 0;
+      const atEnd = index === count - 1 && dx < 0;
+      if (atStart || atEnd) dx *= 0.3;
+
+      setDragX(dx);
+    },
+    onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!active.current) return;
+
+      if (moved.current) {
+        const dx = e.clientX - startX.current;
+        const threshold = Math.min(80, width.current * 0.2);
+
+        if (dx < -threshold && index < count - 1) onChange(index + 1);
+        else if (dx > threshold && index > 0) onChange(index - 1);
+      }
+
+      reset();
+    },
+    onPointerCancel: reset,
+  };
+
+  const trackStyle: React.CSSProperties = {
+    transform: `translateX(calc(${-index * 100}% + ${dragX}px))`,
+    transition: dragging
+      ? "none"
+      : "transform 280ms cubic-bezier(0.22, 1, 0.36, 1)",
+    willChange: "transform",
+  };
+
+  // True right after a swipe, so the following "click" can be ignored
+  const wasDrag = () => moved.current;
+
+  return { handlers, trackStyle, wasDrag };
+}
+
+/* =========================================================
+   FULL SCREEN IMAGE VIEWER
+========================================================== */
+function ImageViewer({
+  images,
+  startIndex,
+  onClose,
+}: {
+  images: string[];
+  startIndex: number;
+  onClose: () => void;
+}) {
+  const [index, setIndex] = useState(startIndex);
+  const swipe = useSwipe({ index, count: images.length, onChange: setIndex });
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowRight") setIndex((i) => Math.min(images.length - 1, i + 1));
+      if (event.key === "ArrowLeft") setIndex((i) => Math.max(0, i - 1));
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [images.length]);
+
+  return (
+    <div className="fixed inset-0 z-[70] bg-black" role="dialog" aria-modal="true" aria-label="Image viewer">
+      <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <span className="rounded-full bg-white/15 px-3 py-1 text-sm font-semibold text-white backdrop-blur-sm">
+          {index + 1} / {images.length}
+        </span>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="grid h-10 w-10 place-items-center rounded-full bg-white/15 text-white backdrop-blur-sm transition active:scale-90"
+          aria-label="Close image"
+        >
+          <X size={22} />
+        </button>
+      </div>
+
+      <div
+        className="h-full w-full touch-pan-y select-none overflow-hidden"
+        {...swipe.handlers}
+      >
+        <div className="flex h-full" style={swipe.trackStyle}>
+          {images.map((src, idx) => (
+            <div
+              key={`${idx}-full`}
+              className="flex h-full w-full shrink-0 items-center justify-center"
+            >
+              <img
+                src={src}
+                alt={`Image ${idx + 1}`}
+                draggable={false}
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {images.length > 1 && (
+        <div className="absolute inset-x-0 bottom-0 flex justify-center gap-2 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+          {images.map((_, idx) => (
+            <span
+              key={`${idx}-full-dot`}
+              className={`h-1.5 rounded-full transition-all ${
+                idx === index ? "w-6 bg-white" : "w-1.5 bg-white/50"
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PostDetailModal({
   post,
   onClose,
@@ -108,13 +293,30 @@ export function PostDetailModal({
   sessionUserId: string | null;
 }) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [likeCount, setLikeCount] = useState(post.likes ?? 0);
   const [shareCount, setShareCount] = useState(post.shares ?? 0);
+  const [openedCount, setOpenedCount] = useState(
+    Array.isArray(post.opened) ? post.opened.length : 0
+  );
+  const [highlightCount, setHighlightCount] = useState(post.highlightCount ?? 0);
+  const [hasHighlighted, setHasHighlighted] = useState(
+    Array.isArray(post.highlightedByUser) && sessionUserId
+      ? post.highlightedByUser.includes(sessionUserId)
+      : false
+  );
   const [hasLiked, setHasLiked] = useState(
     Array.isArray(post.likedBy) && sessionUserId
       ? post.likedBy.includes(sessionUserId)
       : false
   );
+  const [reactionMap, setReactionMap] = useState<Record<string, string>>(
+    () =>
+      post.reactions && typeof post.reactions === "object"
+        ? { ...post.reactions }
+        : {}
+  );
+  const [showReactions, setShowReactions] = useState(false);
   const [commentsList, setCommentsList] = useState<CommentItem[]>(
     Array.isArray(post.commentsList) ? post.commentsList : []
   );
@@ -132,16 +334,64 @@ export function PostDetailModal({
     null
   );
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+
+  const discussionRef = useRef<HTMLDivElement | null>(null);
+  const viewLoggedRef = useRef(false);
 
   useModalHistory(onClose);
 
-  const imageList = post.images || [];
+  const imageList = (post.images || []).filter(
+    (image): image is string => typeof image === "string" && image.trim().length > 0
+  );
   const totalImages = imageList.length;
+
+  const gallerySwipe = useSwipe({
+    index: currentImageIndex,
+    count: totalImages,
+    onChange: setCurrentImageIndex,
+  });
 
   const totalReplyCount = commentsList.reduce(
     (sum, comment) => sum + countReplies(comment),
     0
   );
+
+  const myReaction = sessionUserId ? reactionMap[sessionUserId] ?? null : null;
+
+  // Who has liked the post right now (server data adjusted by the local like state)
+  const likedByIds = useMemo(() => {
+    const ids = new Set(Array.isArray(post.likedBy) ? post.likedBy : []);
+    if (sessionUserId) {
+      if (hasLiked) ids.add(sessionUserId);
+      else ids.delete(sessionUserId);
+    }
+    return [...ids];
+  }, [post.likedBy, hasLiked, sessionUserId]);
+
+  // Most used reaction on this post
+  const topReaction = useMemo(() => {
+    const userIds = new Set([...likedByIds, ...Object.keys(reactionMap)]);
+    const tally = new Map<string, number>();
+
+    userIds.forEach((id) => {
+      const emoji = reactionMap[id] ?? (likedByIds.includes(id) ? DEFAULT_LIKE_EMOJI : null);
+      if (emoji) tally.set(emoji, (tally.get(emoji) ?? 0) + 1);
+    });
+
+    let best: string | null = null;
+    let bestCount = 0;
+
+    for (const { emoji } of reactionOptions) {
+      const count = tally.get(emoji) ?? 0;
+      if (count > bestCount) {
+        best = emoji;
+        bestCount = count;
+      }
+    }
+
+    return best;
+  }, [likedByIds, reactionMap]);
 
   useEffect(() => {
     const previous = document.body.style.overflow;
@@ -153,11 +403,41 @@ export function PostDetailModal({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      // Escape closes the full screen image first, then the post
+      if (viewerIndex !== null) setViewerIndex(null);
+      else onClose();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [onClose, viewerIndex]);
+
+  useEffect(() => {
+    const postId = post._id ?? post.id;
+    if (!postId || viewLoggedRef.current) return;
+    viewLoggedRef.current = true; // avoids double counting in React strict mode
+
+    async function recordView() {
+      try {
+        const response = await fetch(`/api/posts/${postId}/view`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        if (!response.ok) return;
+
+        const data = await response.json().catch(() => null);
+        if (typeof data?.opened === "number") {
+          setOpenedCount(data.opened);
+        }
+      } catch (err) {
+        console.error("Failed to record post view:", err);
+      }
+    }
+
+    recordView();
+  }, [post._id, post.id]);
 
   async function handleLike() {
     const previousLiked = hasLiked;
@@ -185,6 +465,68 @@ export function PostDetailModal({
     }
   }
 
+  async function handleHighlight() {
+    const previous = hasHighlighted;
+    const previousCount = highlightCount;
+
+    setHasHighlighted(!hasHighlighted);
+    setHighlightCount(!hasHighlighted ? highlightCount + 1 : highlightCount - 1);
+
+    try {
+      const response = await fetch(`/api/posts/${post._id ?? post.id}/highlight`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ highlighted: !previous }),
+      });
+
+      if (!response.ok) {
+        setHasHighlighted(previous);
+        setHighlightCount(previousCount);
+      }
+    } catch (error) {
+      console.error("Failed to highlight post:", error);
+      setHasHighlighted(previous);
+      setHighlightCount(previousCount);
+    }
+  }
+
+  async function handleReactionSelect(emoji: string) {
+    setShowReactions(false);
+    if (!sessionUserId) return;
+
+    const previous = reactionMap[sessionUserId] ?? null;
+    const next = previous === emoji ? null : emoji; // tapping the same emoji removes it
+
+    const apply = (value: string | null) =>
+      setReactionMap((current) => {
+        const copy = { ...current };
+        if (value) copy[sessionUserId] = value;
+        else delete copy[sessionUserId];
+        return copy;
+      });
+
+    apply(next);
+
+    try {
+      const response = await fetch(`/api/posts/${post._id ?? post.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "react", emoji }),
+      });
+
+      if (!response.ok) throw new Error("Reaction failed");
+    } catch (error) {
+      console.error("Failed to save reaction:", error);
+      apply(previous);
+    }
+  }
+
+  function scrollToDiscussion() {
+    discussionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   async function handleShare() {
     try {
       const response = await fetch(`/api/posts/${post._id ?? post.id}`, {
@@ -202,6 +544,28 @@ export function PostDetailModal({
       }
     } catch (error) {
       console.error("Failed to share post:", error);
+    }
+  }
+
+  async function handleReshare() {
+    try {
+      const response = await fetch(`/api/posts/${post._id ?? post.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reshare" }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data?.post) {
+          // Refresh the post data with the new reshare count
+          const updatedPost = { ...post, reshareCount: (post.reshareCount ?? 0) + 1 };
+          // We can't directly update the parent, but the share modal handles it
+        }
+      }
+    } catch (error) {
+      console.error("Failed to reshare post:", error);
     }
   }
 
@@ -243,10 +607,9 @@ export function PostDetailModal({
         const targetComment = data.post.commentsList[data.post.commentsList.length - 1];
         if (targetComment && targetComment.userId !== sessionUserId) {
           await createClientNotification({
-            senderId: sessionUserId,
+            actorId: sessionUserId,
             receiverId: post.userId,
             creatorId: post.userId,
-            actorId: sessionUserId,
             actorName: "You",
             type: "comment",
             postId: String(post._id ?? post.id),
@@ -308,10 +671,9 @@ export function PostDetailModal({
 
       if (response.ok && !alreadyLiked && target.userId && target.userId !== sessionUserId) {
         await createClientNotification({
-          senderId: sessionUserId,
+          actorId: sessionUserId,
           receiverId: target.userId,
           creatorId: post.userId || target.userId,
-          actorId: sessionUserId,
           actorName: "You",
           type: "comment-reaction",
           postId: String(post._id ?? post.id),
@@ -488,11 +850,11 @@ export function PostDetailModal({
   }
 
   function nextImage() {
-    setCurrentImageIndex((prev) => (prev + 1) % totalImages);
+    setCurrentImageIndex((prev) => Math.min(totalImages - 1, prev + 1));
   }
 
   function prevImage() {
-    setCurrentImageIndex((prev) => (prev - 1 + totalImages) % totalImages);
+    setCurrentImageIndex((prev) => Math.max(0, prev - 1));
   }
 
   return (
@@ -507,11 +869,17 @@ export function PostDetailModal({
               src={post.userImage}
               alt={post.userName || "User"}
               className="h-full w-full object-cover"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.src = "/shadow.png";
+              }}
             />
           ) : (
-            <span>
-              {(post.userName || "U").slice(0, 2).toUpperCase()}
-            </span>
+            <img
+              src="/shadow.png"
+              alt={post.userName || "User"}
+              className="h-full w-full object-cover"
+            />
           )}
         </div>
 
@@ -535,14 +903,75 @@ export function PostDetailModal({
         </button>
       </div>
 
+      {/* Reshare indicator */}
+      {post.reshareOf && post.reshareData && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-[#e3ebe6] bg-[#f7faf8] px-5 py-3 md:px-6">
+          <svg className="h-4 w-4 text-[#1c9d57]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17 1l4 4-4 4" />
+            <path d="M3 11V9a4 4 0 014-4h14" />
+            <path d="M7 23l-4-4 4-4" />
+            <path d="M21 13v2a4 4 0 01-4 4H3" />
+          </svg>
+          <span className="text-sm text-[#5f7073]">
+            <b className="text-[#1c9d57]">{post.userName}</b> reshared a post by{" "}
+            <b className="text-[#1c9d57]">{post.reshareData.originalUserName || "Unknown user"}</b>
+          </span>
+        </div>
+      )}
+
       {/* =========================================================
           MAIN SCROLL AREA
       ========================================================== */}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-21.5">
         {/* =======================================================
+            NESTED ORIGINAL POST (for reshared posts)
+        ======================================================== */}
+        {post.reshareOf && post.reshareData && (
+          <div className="shrink-0 border-b border-[#e3ebe6] bg-[#fafdfb] px-5 py-4 md:px-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e8efe8] text-sm font-semibold text-[#2f6b4f]">
+                {post.reshareData.originalUserImage ? (
+                  <img
+                    src={post.reshareData.originalUserImage}
+                    alt={post.reshareData.originalUserName || "User"}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span>
+                    {(post.reshareData.originalUserName || "U").slice(0, 2).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-[#15271d]">
+                  {post.reshareData.originalUserName}
+                </p>
+                <p className="text-xs text-[#9aa79f]">
+                  @{(post.reshareData.originalUserName || "user").toLowerCase().replace(/\s+/g, ".")}
+                </p>
+              </div>
+            </div>
+            {post.reshareData.originalContent?.trim() ? (
+              <p className="mt-3 whitespace-pre-wrap text-[15px] leading-6 text-[#1d2c23]">
+                {post.reshareData.originalContent}
+              </p>
+            ) : null}
+            {Array.isArray(post.reshareData.originalImages) && post.reshareData.originalImages.length > 0 && (
+              <div className="mt-3 overflow-hidden rounded-xl">
+                <img
+                  src={post.reshareData.originalImages[0]}
+                  alt="Original post"
+                  className="h-[300px] w-full object-cover"
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* =======================================================
             DESCRIPTION
         ======================================================== */}
-        {post.content?.trim() ? (
+        {post.content?.trim() && !post.reshareOf ? (
           <div className="shrink-0 border-b border-[#e3ebe6] bg-white px-5 py-4 md:px-6">
             <p className="whitespace-pre-wrap text-[16px] font-medium leading-7 text-[#15271d]">
               {post.content}
@@ -551,20 +980,43 @@ export function PostDetailModal({
         ) : null}
 
         {/* =======================================================
-            IMAGE
+            IMAGES: swipe, buttons, tap for full screen
         ======================================================== */}
         {totalImages > 0 && (
           <div className="relative shrink-0 bg-black">
-            <img
-              src={imageList[currentImageIndex]}
-              alt={`Post image ${currentImageIndex + 1}`}
-              className="block h-[52dvh] w-full object-contain md:h-[60dvh]"
-            />
+            <div
+              className="touch-pan-y select-none overflow-hidden"
+              {...gallerySwipe.handlers}
+              onClick={() => {
+                if (!gallerySwipe.wasDrag()) setViewerIndex(currentImageIndex);
+              }}
+            >
+              <div className="flex" style={gallerySwipe.trackStyle}>
+                {imageList.map((src, idx) => (
+                  <div
+                    key={`${idx}-slide`}
+                    className="flex h-[52dvh] w-full shrink-0 items-center justify-center bg-black md:h-[60dvh]"
+                  >
+                    <img
+                      src={src}
+                      alt={`Post image ${idx + 1}`}
+                      draggable={false}
+                      className="h-full w-full cursor-zoom-in object-contain"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
 
-            {/* IMAGE COUNTER */}
             {totalImages > 1 && (
               <>
-                <div className="absolute inset-x-0 bottom-4 flex justify-center gap-2">
+                {/* COUNTER */}
+                <span className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/55 px-2.5 py-1 text-xs font-semibold text-white">
+                  {currentImageIndex + 1} / {totalImages}
+                </span>
+
+                {/* DOTS */}
+                <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center gap-2">
                   {imageList.map((_, idx) => (
                     <div
                       key={`${idx}-image-dot`}
@@ -578,82 +1030,114 @@ export function PostDetailModal({
                 </div>
 
                 {/* PREVIOUS */}
-                <button
-                  onClick={prevImage}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-black/35 p-2.5 text-white backdrop-blur-sm transition hover:bg-black/55"
-                  aria-label="Previous image"
-                >
-                  <ChevronLeft size={24} />
-                </button>
+                {currentImageIndex > 0 && (
+                  <button
+                    onClick={prevImage}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/35 p-2.5 text-white backdrop-blur-sm transition hover:bg-black/55"
+                    aria-label="Previous image"
+                  >
+                    <ChevronLeft size={24} />
+                  </button>
+                )}
 
                 {/* NEXT */}
-                <button
-                  onClick={nextImage}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-black/35 p-2.5 text-white backdrop-blur-sm transition hover:bg-black/55"
-                  aria-label="Next image"
-                >
-                  <ChevronRight size={24} />
-                </button>
+                {currentImageIndex < totalImages - 1 && (
+                  <button
+                    onClick={nextImage}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/35 p-2.5 text-white backdrop-blur-sm transition hover:bg-black/55"
+                    aria-label="Next image"
+                  >
+                    <ChevronRight size={24} />
+                  </button>
+                )}
               </>
             )}
           </div>
         )}
 
         {/* =======================================================
-            LIKE / COMMENT / SHARE
-            DIRECTLY UNDER IMAGE
+            REACTIONS SUMMARY + ACTION BAR + TOP REACTION
         ======================================================== */}
-        <div className="shrink-0 border-b border-[#e3ebe6] bg-white px-4 py-3 md:px-6">
-          <div className="flex items-center gap-2">
-            {/* LIKE */}
+        <div className="shrink-0 border-b border-[#e3ebe6] bg-white">
+          {/* Summary */}
+          <div className="mx-3 mt-3 flex items-center justify-between gap-2 border-b border-[#edf2ee] pb-2.5 text-xs text-[#718078]">
+            <span className="flex items-center gap-1.5">
+              {hasLiked && (
+                <Heart size={13} className="fill-[#f43f68] text-[#f43f68]" />
+              )}
+              {likeCount} {likeCount === 1 ? "reaction" : "reactions"}
+            </span>
+
+            <span className="truncate text-right">
+              {commentsList.length} comments · {shareCount} shares
+            </span>
+          </div>
+
+          {/* Action bar */}
+          <div className="px-3 py-2">
+            <PostActionBar
+              highlighted={hasHighlighted}
+              highlightCount={highlightCount}
+              commentCount={commentsList.length}
+              viewCount={openedCount}
+              onAdd={() => setShowReactions((value) => !value)}
+              onHighlight={handleHighlight}
+              onComment={scrollToDiscussion}
+              onViews={() => {}}
+              onShare={() => setShareModalOpen(true)}
+              showCounts={true}
+            />
+          </div>
+
+          {/* Reaction picker */}
+          {showReactions && (
+            <div className="mx-3 mb-2 flex max-w-full flex-wrap items-center gap-1.5 rounded-2xl border border-[#dcebe1] bg-white p-2 shadow-[0_6px_20px_rgba(15,39,28,0.10)]">
+              {reactionOptions.map((option) => (
+                <button
+                  key={option.label}
+                  type="button"
+                  onClick={() => handleReactionSelect(option.emoji)}
+                  className={`flex h-9 w-9 items-center justify-center rounded-full text-lg transition hover:scale-110 hover:bg-[#eef8f1] ${
+                    myReaction === option.emoji ? "bg-[#e3f4e9]" : ""
+                  }`}
+                  aria-label={option.label}
+                  title={option.label}
+                >
+                  {option.emoji}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Top reaction + scroll hint */}
+          <div className="flex items-center justify-between gap-3 px-3 pb-3 pt-1">
+            <span className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-xs text-[#718078]">
+              {topReaction && (
+                <>
+                  <span className="text-base leading-none">{topReaction}</span>
+                  <span>top reaction</span>
+                  {myReaction && (
+                    <span className="text-[#9aa79f]">· you {myReaction}</span>
+                  )}
+                </>
+              )}
+            </span>
+
             <button
-              onClick={handleLike}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#f2f6f3] py-3 text-sm font-semibold text-[#15271d] transition hover:bg-[#e5f1e8]"
+              type="button"
+              onClick={scrollToDiscussion}
+              className="flex shrink-0 items-center gap-1 text-xs font-semibold text-[#168b45] transition active:text-[#0c6831]"
             >
-              <Heart
-                size={18}
-                className={
-                  hasLiked ? "fill-red-500 text-red-500" : ""
-                }
-              />
-
-              <span>{hasLiked ? "Unlike" : "Like"}</span>
-
-              <span className="text-[#718077]">
-                {likeCount}
-              </span>
-            </button>
-
-            {/* COMMENT */}
-            <button
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#f2f6f3] py-3 text-sm font-semibold text-[#15271d] transition hover:bg-[#e5f1e8]"
-            >
-              <MessageCircle size={18} />
-
-              <span>Comment</span>
-
-              <span className="text-[#718077]">
-                {commentsList.length}
-              </span>
-            </button>
-
-            {/* SHARE */}
-            <button
-              onClick={handleShare}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#f2f6f3] py-3 text-sm font-semibold text-[#15271d] transition hover:bg-[#e5f1e8]"
-            >
-              <Send size={18} />
-
-              <span>Share</span>
-
-              <span className="text-[#718077]">
-                {shareCount}
-              </span>
+              Scroll to see discussion
+              <ChevronDown size={14} />
             </button>
           </div>
         </div>
 
-        <div className="bg-white px-5 py-5 md:px-6">
+        {/* =======================================================
+            DISCUSSION
+        ======================================================== */}
+        <div ref={discussionRef} className="scroll-mt-2 bg-white px-5 py-5 md:px-6">
           <div className="space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-[#9aa79f]">
               Comments ({commentsList.length}) · Replies ({totalReplyCount})
@@ -682,14 +1166,12 @@ export function PostDetailModal({
                               src={comment.userImage}
                               alt={comment.userName || "User"}
                               className="h-full w-full object-cover"
+                              onError={(e) => { (e.target as HTMLImageElement).src = "/shadow.png"; }}
                             />
                           ) : (
-                            <span>
-                              {(comment.userName || "U")
-                                .slice(0, 2)
-                                .toUpperCase()}
-                            </span>
+                            <img src="/shadow.png" alt={comment.userName || "User"} className="h-full w-full object-cover" />
                           )}
+
                         </div>
 
                         <div className="min-w-0 flex-1">
@@ -777,9 +1259,9 @@ export function PostDetailModal({
                               <div className="flex items-center gap-2">
                                 <div className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e8efe8] text-[10px] font-semibold text-[#2f6b4f]">
                                   {reply.userImage ? (
-                                    <img src={reply.userImage} alt={reply.userName || "User"} className="h-full w-full object-cover" />
+                                    <img src={reply.userImage} alt={reply.userName || "User"} className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = "/shadow.png"; }} />
                                   ) : (
-                                    <span>{(reply.userName || "U").slice(0, 2).toUpperCase()}</span>
+                                    <img src="/shadow.png" alt={reply.userName || "User"} className="h-full w-full object-cover" />
                                   )}
                                 </div>
                                 <div className="min-w-0 flex-1">
@@ -912,6 +1394,24 @@ export function PostDetailModal({
           replyText={replyText}
           setReplyText={setReplyText}
           replyingToUserName={replyingToUserName}
+        />
+      )}
+
+      {/* Share Modal */}
+      <ShareModal
+        post={post}
+        isOpen={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        onReshare={handleReshare}
+        sessionUserId={sessionUserId}
+      />
+
+      {/* Full screen image viewer */}
+      {viewerIndex !== null && totalImages > 0 && (
+        <ImageViewer
+          images={imageList}
+          startIndex={Math.min(viewerIndex, totalImages - 1)}
+          onClose={() => setViewerIndex(null)}
         />
       )}
     </div>

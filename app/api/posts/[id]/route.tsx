@@ -7,6 +7,20 @@ const DB_NAME = 'netizen'
 const MAX_IMAGES = 4
 const MAX_IMAGE_STRING_LENGTH = 7_000_000
 
+// Must match the emojis in the reaction picker
+const ALLOWED_REACTIONS = ['👍', '❤️', '🥰', '😆', '😮', '😢', '😡']
+
+const ALLOWED_ACTIONS = [
+  'like',
+  'react',
+  'comment',
+  'reply-comment',
+  'like-comment',
+  'share',
+  'view',
+  'reshare',
+]
+
 function normalizePost(post: Record<string, any>) {
   if (!post) return null
 
@@ -17,6 +31,17 @@ function normalizePost(post: Record<string, any>) {
     id,
     _id: id,
   }
+}
+
+// mongodb driver v5 returns { value: doc }, v6 returns the doc itself.
+// This handles both so we never fall back to a stale post by accident.
+function unwrap(result: any, fallback: any) {
+  const doc =
+    result && typeof result === 'object' && 'value' in result
+      ? result.value
+      : result
+
+  return doc ?? fallback
 }
 
 export async function GET(
@@ -136,6 +161,10 @@ export async function POST(request: NextRequest) {
             comments: 0,
             shares: 0,
             likedBy: [],
+            opened: [],
+            reactions: {},
+            reshareOf: null,
+            reshareCount: 0,
             createdAt: new Date(),
             updatedAt: new Date(),
         }
@@ -322,7 +351,7 @@ export async function PATCH(
     const body = await request.json().catch(() => ({}))
     const action = typeof body?.action === 'string' ? body.action : ''
 
-    if (!['like', 'comment', 'reply-comment', 'like-comment', 'share'].includes(action)) {
+    if (!ALLOWED_ACTIONS.includes(action)) {
       return NextResponse.json(
         { success: false, message: 'Unsupported interaction action' },
         { status: 400 }
@@ -369,12 +398,67 @@ export async function PATCH(
         { returnDocument: 'after' }
       )
 
-      const updatedPost = normalizePost(result?.value ?? post)
-
       return NextResponse.json({
         success: true,
         liked: !hasLiked,
-        post: updatedPost,
+        post: normalizePost(unwrap(result, post)),
+      })
+    }
+
+    // -----------------------------------------------------------------
+    // REACT: save (or remove) the signed-in user's emoji reaction.
+    // Stored as post.reactions = { [userId]: emoji }
+    // Sending the same emoji again removes the reaction.
+    // -----------------------------------------------------------------
+    if (action === 'react') {
+      if (!session?.user) {
+        return NextResponse.json(
+          { success: false, message: 'You must be signed in to react' },
+          { status: 401 }
+        )
+      }
+
+      const userId = String(session.user.id)
+
+      // Mongo field names can't contain "." or start with "$"
+      if (!userId || userId.includes('.') || userId.startsWith('$')) {
+        return NextResponse.json(
+          { success: false, message: 'Invalid user ID' },
+          { status: 400 }
+        )
+      }
+
+      const emoji = typeof body.emoji === 'string' ? body.emoji.trim() : ''
+
+      if (!emoji || !ALLOWED_REACTIONS.includes(emoji)) {
+        return NextResponse.json(
+          { success: false, message: 'Unsupported reaction' },
+          { status: 400 }
+        )
+      }
+
+      const existing =
+        post.reactions && typeof post.reactions === 'object'
+          ? (post.reactions as Record<string, string>)
+          : {}
+
+      const field = `reactions.${userId}`
+      const remove = existing[userId] === emoji
+
+      const result = await db.collection('posts').findOneAndUpdate(
+        { _id: postId },
+        remove
+          ? { $unset: { [field]: '' } }
+          : { $set: { [field]: emoji } },
+        { returnDocument: 'after' }
+      )
+
+      const updated = unwrap(result, post)
+
+      return NextResponse.json({
+        success: true,
+        emoji: remove ? null : emoji,
+        reactions: updated?.reactions ?? {},
       })
     }
 
@@ -419,7 +503,7 @@ export async function PATCH(
       return NextResponse.json({
         success: true,
         comment,
-        post: normalizePost(result?.value ?? post),
+        post: normalizePost(unwrap(result, post)),
       })
     }
 
@@ -450,7 +534,6 @@ export async function PATCH(
         )
       }
 
-      const targetComment = commentsList[targetIndex]
       const commentsWithUpdatedState = commentsList.map((comment, index) => {
         if (index !== targetIndex) return comment
 
@@ -468,7 +551,7 @@ export async function PATCH(
 
           const nextReply = {
             ...targetReply,
-            likes: Number(targetReply.likes ?? 0) + (hasLiked ? -1 : 1),
+            likes: Math.max(0, Number(targetReply.likes ?? 0) + (hasLiked ? -1 : 1)),
             likedBy: hasLiked
               ? likedBy.filter((id: string) => id !== session.user.id)
               : [...new Set([...likedBy, session.user.id])],
@@ -487,7 +570,7 @@ export async function PATCH(
 
         return {
           ...comment,
-          likes: Number(comment.likes ?? 0) + (hasLiked ? -1 : 1),
+          likes: Math.max(0, Number(comment.likes ?? 0) + (hasLiked ? -1 : 1)),
           likedBy: hasLiked
             ? likedBy.filter((id: string) => id !== session.user.id)
             : [...new Set([...likedBy, session.user.id])],
@@ -503,7 +586,7 @@ export async function PATCH(
       return NextResponse.json({
         success: true,
         comment: commentsWithUpdatedState[targetIndex],
-        post: normalizePost(result?.value ?? post),
+        post: normalizePost(unwrap(result, post)),
       })
     }
 
@@ -535,7 +618,6 @@ export async function PATCH(
         )
       }
 
-      const targetComment = commentsList[targetIndex]
       const reply = {
         _id: new ObjectId(),
         userId: session.user.id,
@@ -566,10 +648,79 @@ export async function PATCH(
       return NextResponse.json({
         success: true,
         reply,
-        post: normalizePost(result?.value ?? post),
+        post: normalizePost(unwrap(result, post)),
       })
     }
 
+    if (action === 'view') {
+      // Signed-out visitors aren't recorded (this used to push `undefined` into `opened`)
+      if (!session?.user?.id) {
+        return NextResponse.json({
+          success: true,
+          post: normalizePost(post),
+        })
+      }
+
+      const result = await db.collection('posts').findOneAndUpdate(
+        { _id: postId },
+        { $push: { opened: session.user.id } as any },
+        { returnDocument: 'after' }
+      )
+
+      return NextResponse.json({
+        success: true,
+        post: normalizePost(unwrap(result, post)),
+      })
+    }
+
+    if (action === 'reshare') {
+      if (!session?.user) {
+        return NextResponse.json(
+          { success: false, message: 'You must be signed in to reshare' },
+          { status: 401 }
+        )
+      }
+
+      const reshare = {
+        content: post.content,
+        images: Array.isArray(post.images) ? post.images : [],
+        userId: session.user.id,
+        userName: session.user.name || 'Unknown user',
+        userImage: session.user.image || null,
+        likes: 0,
+        comments: 0,
+        shares: 0,
+        likedBy: [],
+        opened: [],
+        reactions: {},
+        reshareOf: id,
+        reshareCount: 0,
+        reshareData: {
+          originalPostId: id,
+          originalContent: post.content,
+          originalImages: Array.isArray(post.images) ? post.images : [],
+          originalUserName: post.userName || 'Unknown user',
+          originalUserImage: post.userImage || null,
+          originalUserId: post.userId,
+        },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+
+      const result = await db.collection('posts').insertOne(reshare)
+
+      await db.collection('posts').updateOne(
+        { _id: postId },
+        { $inc: { reshareCount: 1 } }
+      )
+
+      return NextResponse.json({
+        success: true,
+        post: normalizePost({ ...reshare, _id: result.insertedId }),
+      })
+    }
+
+    // action === 'share'
     const result = await db.collection('posts').findOneAndUpdate(
       { _id: postId },
       { $inc: { shares: 1 } },
@@ -578,7 +729,7 @@ export async function PATCH(
 
     return NextResponse.json({
       success: true,
-      post: normalizePost(result?.value || post),
+      post: normalizePost(unwrap(result, post)),
     })
   } catch (error) {
     console.error('PATCH /api/posts/[id] error:', error)

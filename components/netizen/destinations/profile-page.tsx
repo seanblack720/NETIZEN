@@ -228,9 +228,10 @@ export function ProfilePage() {
                 src={user.image}
                 alt={user.name || user.email || "User profile"}
                 className="h-full w-full object-cover"
+                onError={(e) => { (e.target as HTMLImageElement).src = "/shadow.png"; }}
               />
             ) : (
-              initials(user.name, user.email)
+              <img src="/shadow.png" alt={user.name || user.email || "User profile"} className="h-full w-full object-cover" />
             )}
           </div>
         </div>
@@ -308,9 +309,10 @@ export function ProfilePage() {
                           src={post.userImage}
                           alt={post.userName || "User"}
                           className="h-full w-full object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).src = "/shadow.png"; }}
                         />
                       ) : (
-                        initials(post.userName || user?.name, user?.email)
+                        <img src="/shadow.png" alt={post.userName || "User"} className="h-full w-full object-cover" />
                       )}
                     </div>
                     <div className="min-w-0 flex-1">

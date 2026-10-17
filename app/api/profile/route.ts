@@ -14,16 +14,23 @@ export async function GET(request: NextRequest) {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) return NextResponse.json({ message: "Sign in required" }, { status: 401 });
 
+  const { searchParams } = new URL(request.url);
+  const requestedUserId = searchParams.get("userId")?.trim();
+  const targetUserId = requestedUserId || session.user.id;
+
   const db = (await clientPromise).db(DB_NAME);
   const [profile, followers, following] = await Promise.all([
-    db.collection("profiles").findOne({ userId: session.user.id }),
-    db.collection("follows").countDocuments({ followingId: session.user.id }),
-    db.collection("follows").countDocuments({ followerId: session.user.id }),
+    db.collection("profiles").findOne({ userId: targetUserId }),
+    db.collection("follows").countDocuments({ followingId: targetUserId }),
+    db.collection("follows").countDocuments({ followerId: targetUserId }),
   ]);
+
+  const userDoc = await db.collection("user").findOne({ id: targetUserId });
 
   return NextResponse.json({
     user: session.user,
-    profile: profile ?? { userId: session.user.id, bio: "", location: "", phone: "", birthDate: "", coverImage: "" },
+    targetUser: userDoc ?? { id: targetUserId, name: session.user.name, image: session.user.image },
+    profile: profile ?? { userId: targetUserId, bio: "", location: "", phone: "", birthDate: "", coverImage: "" },
     followers,
     following,
   });

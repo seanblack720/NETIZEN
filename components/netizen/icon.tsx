@@ -4,8 +4,10 @@ import {
   CarFront,
   FileText,
   Home,
+  Megaphone,
   MessageCircle,
   PlayCircle,
+  ScrollText,
   Search,
   Users,
   UserRound,
@@ -16,6 +18,7 @@ import type { ComponentType } from "react";
 
 const icons = {
   home: Home,
+  megaphone: Megaphone,
   play: PlayCircle,
   message: MessageCircle,
   bell: Bell,
@@ -23,6 +26,7 @@ const icons = {
   search: Search,
   wallet: WalletCards,
   file: FileText,
+  scrolltext: ScrollText,
   briefcase: BriefcaseBusiness,
   users: Users,
   user: UserRound,

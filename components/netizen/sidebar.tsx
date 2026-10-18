@@ -256,7 +256,7 @@ export function Sidebar({
   }
 
   return (
-    <aside className="h-full overflow-y-auto overscroll-contain border-r border-[#dfe7e4] px-[18px] py-[38px] max-md:hidden">
+    <aside className="h-full overflow-y-auto overscroll-contain border-r border-[#dfe7e4] bg-white px-[18px] py-[38px] max-md:hidden dark:border-[#1e3a2f] dark:bg-[#101a17]">
       {renderUserProfile()}
 
       <PostButton onClick={onCreate} />

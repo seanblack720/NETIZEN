@@ -130,8 +130,8 @@ export function PrimaryNav({
         overscroll-x-contain
 
         border-b
-        border-[#dfe7e4]
-        bg-white
+        border-[#dfe7e4] dark:border-[#1e3a2f]
+        bg-white dark:bg-[#101a17]
 
         px-1
 

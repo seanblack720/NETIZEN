@@ -274,7 +274,7 @@ export function CreatePostModal({ onClose, onPost }: CreatePostModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 px-0 pt-[134px] backdrop-blur-sm md:px-4 md:pt-[78px]"
+      className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/50 backdrop-blur-sm"
       onClick={onClose}
       role="presentation"
     >
@@ -283,20 +283,20 @@ export function CreatePostModal({ onClose, onPost }: CreatePostModalProps) {
         aria-modal="true"
         role="dialog"
         onClick={(event) => event.stopPropagation()}
-        className="flex h-full w-full flex-col overflow-hidden bg-white md:max-w-[560px] md:rounded-3xl md:border md:border-[#e3ebe6] md:shadow-2xl"
+        className="flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden bg-white dark:bg-[#101a17] md:my-auto md:h-auto md:max-h-[min(90dvh,760px)] md:max-w-[560px] md:rounded-3xl md:border md:border-[#e3ebe6] md:shadow-2xl dark:md:border-[#1e3a2f]"
       >
         {/* Header */}
-        <header className="grid shrink-0 grid-cols-[44px_1fr_44px] items-center border-b border-[#e3ebe6] bg-white px-3 py-3">
+        <header className="grid shrink-0 grid-cols-[44px_1fr_44px] items-center border-b border-[#e3ebe6] bg-white px-3 py-3 dark:border-[#1e3a2f] dark:bg-[#101a17]">
           <button
             aria-label="Close create post"
             type="button"
             onClick={onClose}
-            className="flex h-11 w-11 items-center justify-center rounded-full text-[#15271d] transition hover:bg-[#f0f4f1]"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-[#15271d] transition hover:bg-[#f0f4f1] dark:text-[#e6ece9] dark:hover:bg-[#1f332b]"
           >
             <X size={20} aria-hidden="true" />
           </button>
 
-          <h2 id="create-post-title" className="text-center text-base font-semibold text-[#15271d]">
+          <h2 id="create-post-title" className="text-center text-base font-semibold text-[#15271d] dark:text-[#e6ece9]">
             Create post
           </h2>
 
@@ -306,31 +306,31 @@ export function CreatePostModal({ onClose, onPost }: CreatePostModalProps) {
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto">
           {/* Composer section */}
-          <div className="border-b border-[#eef2ef] px-4 py-4">
+          <div className="border-b border-[#eef2ef] px-4 py-4 dark:border-[#1e3a2f]">
             <div className="flex items-center gap-3">
               {user?.image ? (
                 <Avatar src={user.image} alt={user?.name || "You"} />
               ) : (
                 <span
                   aria-hidden="true"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef5f0] text-[#7c8b83]"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef5f0] text-[#7c8b83] dark:bg-[#143a26] dark:text-[#7ee0b0]"
                 >
                   <UserIcon size={20} />
                 </span>
               )}
 
               <div>
-                <p className="text-sm font-semibold text-[#15271d]">
+                <p className="text-sm font-semibold text-[#15271d] dark:text-[#e6ece9]">
                   {loadingUser ? "Loading..." : user?.name || "Unknown user"}
                 </p>
-                <span className="mt-1 inline-flex items-center rounded-full bg-[#f0f4f1] px-2 py-0.5 text-xs font-medium text-[#68776f]">
+                <span className="mt-1 inline-flex items-center rounded-full bg-[#f0f4f1] px-2 py-0.5 text-xs font-medium text-[#68776f] dark:bg-[#1f332b] dark:text-[#9bb0a8]">
                   Public · Anyone on Netizen
                 </span>
               </div>
             </div>
 
             {!loadingUser && !user && (
-              <div className="mt-4 rounded-xl border border-[#cfe8d8] bg-[#f1faf4] p-3 text-sm text-[#28573d]">
+              <div className="mt-4 rounded-xl border border-[#cfe8d8] bg-[#f1faf4] p-3 text-sm text-[#28573d] dark:border-[#23473a] dark:bg-[#143a26] dark:text-[#b7dfc6]">
                 <p>You need to be logged in to create a post.</p>
                 <Link href="/login" className="mt-2 inline-block font-semibold text-[#07843b] underline underline-offset-2">
                   Log in
@@ -345,13 +345,13 @@ export function CreatePostModal({ onClose, onPost }: CreatePostModalProps) {
               onChange={(event) => setBody(event.target.value)}
               disabled={loading || !user}
               aria-label="Post content"
-              className="mt-4 min-h-[140px] w-full resize-none border-none text-[15px] leading-6 text-[#15271d] placeholder:text-[#9aa79f] focus:outline-none focus:ring-0"
+              className="mt-4 min-h-[140px] w-full resize-none border-none bg-transparent text-[15px] leading-6 text-[#15271d] placeholder:text-[#9aa79f] focus:outline-none focus:ring-0 dark:text-[#e6ece9] dark:placeholder:text-[#8aa39b]"
             />
           </div>
 
           {/* Photo previews section */}
           {images.length > 0 && (
-            <div className="border-b border-[#eef2ef] px-4 py-4">
+            <div className="border-b border-[#eef2ef] px-4 py-4 dark:border-[#1e3a2f]">
               <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#9aa79f]">
                 Photos
               </p>
@@ -360,7 +360,7 @@ export function CreatePostModal({ onClose, onPost }: CreatePostModalProps) {
                 {images.map((src, index) => (
                   <div
                     key={index}
-                    className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-[#e3ebe6]"
+                    className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-[#e3ebe6] dark:border-[#23473a]"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -388,7 +388,7 @@ export function CreatePostModal({ onClose, onPost }: CreatePostModalProps) {
             <div className="px-4 pt-4">
               <p
                 role="alert"
-                className="rounded-xl border border-[#f0c7c7] bg-[#fff3f3] px-3 py-2 text-sm text-[#b42318]"
+                className="rounded-xl border border-[#f0c7c7] bg-[#fff3f3] px-3 py-2 text-sm text-[#b42318] dark:border-[#5c2a2a] dark:bg-[#2a1515] dark:text-[#ffb4a8]"
               >
                 {error || imageError}
               </p>
@@ -397,16 +397,16 @@ export function CreatePostModal({ onClose, onPost }: CreatePostModalProps) {
         </div>
 
         {/* Footer / attachment toolbar — pinned so both actions stay in thumb reach */}
-        <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[#e3ebe6] bg-white px-4 py-3">
+        <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[#e3ebe6] bg-white px-4 py-3 dark:border-[#1e3a2f] dark:bg-[#101a17]">
           <div className="flex items-center gap-2">
             <label
-              className={`flex h-11 w-11 items-center justify-center rounded-full text-[#1c9d57] transition hover:bg-[#e7f7ed] ${
+              className={`flex h-14 w-14 items-center justify-center rounded-full border border-[#e3ebe6] bg-[#f0faf4] text-[#1c9d57] transition hover:bg-[#e7f7ed] dark:border-[#23473a] dark:bg-[#143a26] ${
                 loading || processingImages || images.length >= MAX_IMAGES
                   ? "cursor-not-allowed opacity-40"
                   : "cursor-pointer"
               }`}
             >
-              <ImageIcon size={20} aria-hidden="true" />
+              <ImageIcon size={26} aria-hidden="true" />
               <input
                 type="file"
                 accept="image/*"
@@ -417,7 +417,7 @@ export function CreatePostModal({ onClose, onPost }: CreatePostModalProps) {
               />
             </label>
 
-            <span className="text-xs text-[#68776f]">
+            <span className="text-xs font-medium text-[#68776f] dark:text-[#9bb0a8]">
               {processingImages
                 ? "Uploading photos…"
                 : `${images.length}/${MAX_IMAGES} photos`}
@@ -428,7 +428,7 @@ export function CreatePostModal({ onClose, onPost }: CreatePostModalProps) {
             type="button"
             disabled={!canPost}
             onClick={handlePost}
-            className="flex h-11 min-w-[92px] items-center justify-center rounded-full bg-[#1c9d57] px-5 text-sm font-semibold text-white transition hover:bg-[#138647] disabled:cursor-not-allowed disabled:bg-[#b7dfc6] disabled:text-white/80"
+            className="flex h-14 min-w-[124px] items-center justify-center rounded-full bg-[#1c9d57] px-8 text-[15px] font-bold text-white shadow-[0_4px_14px_rgba(28,157,87,0.35)] transition hover:bg-[#138647] active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#b7dfc6] disabled:text-white/80 dark:shadow-[0_4px_14px_rgba(0,0,0,0.4)]"
           >
             {loading ? "Posting..." : "Post"}
           </button>

@@ -164,6 +164,7 @@ export default function HomePage() {
         active={active}
         onNavigate={setActive}
         onCreate={() => setCreateMenu(true)}
+        onCreateBottomNav={() => setComposer(true)}
         mobileOnly={true}
         rightRail={<RightRail />}
         onOpenProfile={openMyProfile}

@@ -299,72 +299,20 @@ export function PostCard({
         </button>
       </div>
 
-      {/* Original post content nested inside a reshare */}
-      {post.reshareOf && post.reshareData ? (
-        <div className="mx-3 mb-2 mt-3 rounded-xl border border-[#e5ece7] bg-[#fafdfb] p-3 sm:mx-4 sm:p-4">
-          <div className="mb-2 flex items-center gap-2">
-            <Avatar
-              src={
-                post.reshareData.originalUserImage ||
-                "/avatar-1.png"
-              }
-              alt={
-                post.reshareData.originalUserName ||
-                "User"
-              }
-              className="h-8 w-8 rounded-full"
-            />
-
-            <div className="min-w-0">
-              <b className="block truncate text-sm font-semibold text-[#15271d]">
-                {post.reshareData.originalUserName ||
-                  "Unknown user"}
-              </b>
-
-              <span className="block truncate text-xs text-[#64776b]">
-                @{(
-                  post.reshareData.originalUserName ||
-                  "user"
-                )
-                  .toLowerCase()
-                  .replace(/\s+/g, ".")}
-              </span>
-            </div>
-          </div>
-
-          <p className="whitespace-pre-wrap break-words text-[14px] leading-6 text-[#1d2c23]">
-            {post.reshareData.originalContent || ""}
+      {post.content && (
+        <button
+          onClick={() => onSelectPost(post)}
+          className="mt-2 block w-full cursor-pointer px-3 text-left transition hover:opacity-80 sm:px-4"
+          type="button"
+        >
+          <p className="whitespace-pre-wrap break-words text-[15px] leading-[1.55] text-[#1d2c23]">
+            {post.content}
           </p>
-
-          {Array.isArray(
-            post.reshareData.originalImages
-          ) &&
-            post.reshareData.originalImages.length > 0 && (
-              <div className="mt-3 overflow-hidden rounded-lg">
-                <img
-                  src={post.reshareData.originalImages[0]}
-                  alt="Original post"
-                  className="max-h-[360px] w-full object-cover"
-                />
-              </div>
-            )}
-        </div>
-      ) : (
-        post.content && (
-          <button
-            onClick={() => onSelectPost(post)}
-            className="mt-2 block w-full cursor-pointer px-3 text-left transition hover:opacity-80 sm:px-4"
-            type="button"
-          >
-            <p className="whitespace-pre-wrap break-words text-[15px] leading-[1.55] text-[#1d2c23]">
-              {post.content}
-            </p>
-          </button>
-        )
+        </button>
       )}
 
       {/* Edge-to-edge post images on mobile */}
-      {imageList.length > 0 && !post.reshareOf && (
+      {imageList.length > 0 && (
         <button
           onClick={() => onSelectPost(post)}
           className="mt-3 block w-full cursor-pointer overflow-hidden bg-[#f5f7f5] transition hover:opacity-95 sm:mx-4 sm:mb-1 sm:w-[calc(100%-2rem)] sm:rounded-xl sm:border sm:border-[#edf2ee]"

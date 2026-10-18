@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { type NavId } from "@/lib/netizen-data";
 import { AlertCircle, Check, ChevronRight, LoaderCircle, Menu, UserPlus, Users } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type SessionUser = {
   id: string;
@@ -231,12 +232,12 @@ export function Header({
   const requestCount = requests.length;
 
   return (
-    <header className="flex h-20 shrink-0 items-center border-b border-[#dfe7e4] bg-white px-[15px]">
+    <header className="flex h-20 shrink-0 items-center border-b border-[#dfe7e4] bg-white px-[15px] dark:border-[#1e3a2f] dark:bg-[#101a17]">
       <div className="flex w-full flex-row items-center justify-between">
         {/* Logo */}
         <button
           type="button"
-          className="flex items-center gap-2.5 border-0 bg-transparent pt-0 text-[25px] tracking-[-0.04em] text-[#162022]"
+          className="flex items-center gap-2.5 border-0 bg-transparent pt-0 text-[25px] tracking-[-0.04em] text-[#162022] dark:text-zinc-100"
           onClick={() => onNavigate("feed")}
         >
           <img src="/netgreen.png" alt="Netizen logo" className="h-8 w-8 rounded-lg object-cover" />
@@ -245,11 +246,12 @@ export function Header({
         </button>
 
         {/* Right side buttons */}
-        <div className="flex flex-row items-center space-x-1">
+        <div className="flex flex-row items-center gap-1">
+          <ThemeToggle variant="ghost" />
           {/* People / Login */}
           <button
             type="button"
-            className="relative flex h-11 items-center gap-2 rounded-xl bg-[#e7f7ed] px-3 text-sm font-semibold text-[#07843b] transition active:scale-95"
+            className="relative flex h-11 items-center gap-2 rounded-xl bg-[#e7f7ed] px-3 text-sm font-semibold text-[#07843b] transition active:scale-95 dark:bg-[#143a26] dark:text-[#7ee0b0]"
             aria-label={isSignedIn ? "People" : "Log in"}
             aria-haspopup={isSignedIn ? "dialog" : undefined}
             aria-expanded={isSignedIn ? peopleOpen : undefined}
@@ -269,7 +271,7 @@ export function Header({
           {/* Settings Menu */}
           <button
             type="button"
-            className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#e7f7ed] text-[#07843b] transition active:scale-95"
+            className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#e7f7ed] text-[#07843b] transition active:scale-95 dark:bg-[#143a26] dark:text-[#7ee0b0]"
             aria-label="Settings"
             onClick={handleSettings}
           >
@@ -292,22 +294,22 @@ export function Header({
               role="dialog"
               aria-modal="true"
               aria-labelledby="people-title"
-              className="flex max-h-[calc(100dvh-10rem)] w-full max-w-[880px] flex-col self-start overflow-hidden rounded-3xl border border-[#dfe9e2] bg-white shadow-2xl"
+              className="flex max-h-[calc(100dvh-10rem)] w-full max-w-[880px] flex-col self-start overflow-hidden rounded-3xl border border-[#dfe9e2] bg-white shadow-2xl dark:border-[#23473a] dark:bg-[#18231f]"
             >
               {/* My profile */}
-              <div className="shrink-0 border-b border-[#eef3f0] p-3">
+              <div className="shrink-0 border-b border-[#eef3f0] p-3 dark:border-[#1e3a2f]">
                 <button
                   type="button"
                   onClick={openMyProfile}
-                  className="flex w-full items-center gap-3 rounded-2xl bg-[#f1faf4] p-3 text-left transition hover:bg-[#e7f7ed] active:scale-[0.99]"
+                  className="flex w-full items-center gap-3 rounded-2xl bg-[#f1faf4] p-3 text-left transition hover:bg-[#e7f7ed] active:scale-[0.99] dark:bg-[#1a2e26] dark:hover:bg-[#143a26]"
                 >
                   <Avatar src={sessionUser?.image} name={sessionUser?.name} className="h-12 w-12 rounded-full" />
 
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-[#15271d]">
+                    <span className="block truncate text-sm font-semibold text-[#15271d] dark:text-zinc-100">
                       {sessionUser?.name || "Your profile"}
                     </span>
-                    <span className="block truncate text-xs text-[#68776f]">
+                    <span className="block truncate text-xs text-[#68776f] dark:text-zinc-400">
                       {handle ? `${handle} · ` : ""}View your profile
                     </span>
                   </span>
@@ -319,13 +321,13 @@ export function Header({
               {/* Netizen requests */}
               <div className="flex min-h-0 flex-1 flex-col">
                 <div className="flex shrink-0 items-center justify-between px-5 pb-2 pt-4">
-                  <h2 id="people-title" className="flex items-center gap-2 text-sm font-semibold text-[#15271d]">
+                  <h2 id="people-title" className="flex items-center gap-2 text-sm font-semibold text-[#15271d] dark:text-zinc-100">
                     <UserPlus className="h-4 w-4 text-[#1c9d57]" aria-hidden="true" />
                     Netizen requests
                   </h2>
 
                   {requestCount > 0 && (
-                    <span className="rounded-full bg-[#e7f7ed] px-2.5 py-1 text-xs font-semibold text-[#07843b]">
+                    <span className="rounded-full bg-[#e7f7ed] px-2.5 py-1 text-xs font-semibold text-[#07843b] dark:bg-[#143a26] dark:text-[#7ee0b0]">
                       {requestCount}
                     </span>
                   )}
@@ -335,7 +337,7 @@ export function Header({
                   <p
                     role={actionError ? "alert" : "status"}
                     className={`mx-4 mb-2 flex items-start gap-2 rounded-xl px-3 py-2 text-xs ${
-                      actionError ? "bg-[#fff4f1] text-[#7f362f]" : "bg-[#eaf4ed] text-[#204d39]"
+                      actionError ? "bg-[#fff4f1] text-[#7f362f] dark:bg-[#3a1a1a] dark:text-red-200" : "bg-[#eaf4ed] text-[#204d39] dark:bg-[#143a26] dark:text-[#7ee0b0]"
                     }`}
                   >
                     {actionError ? (

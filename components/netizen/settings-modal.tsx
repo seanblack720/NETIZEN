@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { useTheme } from "@/components/theme-provider";
 import {
   AlertCircle,
   ArrowLeft,
@@ -18,8 +19,7 @@ import {
   UserRound,
 } from "lucide-react";
 
-const MODE_KEY = "netizen-ui-mode"; // same key the register page writes
-const LEGACY_PREFS_KEY = "netizen.preferences"; // kept in sync in case other code reads it
+
 
 /* ------------------------------------------------------------------ */
 /* Small building blocks                                               */
@@ -56,8 +56,8 @@ function Toggle({
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-6 first:mt-0">
-      <h3 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-[#68776f]">{title}</h3>
-      <div className="overflow-hidden rounded-3xl border border-[#dfe9e2] bg-white shadow-sm">{children}</div>
+      <h3 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-[#68776f] dark:text-zinc-400">{title}</h3>
+      <div className="overflow-hidden rounded-3xl border border-[#dfe9e2] bg-white shadow-sm dark:border-[#23473a] dark:bg-[#18231f]">{children}</div>
     </section>
   );
 }
@@ -89,18 +89,18 @@ function Row({
 }) {
   const content = (
     <>
-      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${TONE[tone]}`}>{icon}</span>
+      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${TONE[tone]} dark:brightness-110`}>{icon}</span>
       <span className="min-w-0 flex-1 text-left">
-        <span className={`block text-sm font-semibold ${tone === "red" ? "text-[#c0392b]" : "text-[#15271d]"}`}>
+        <span className={`block text-sm font-semibold ${tone === "red" ? "text-[#c0392b] dark:text-red-400" : "text-[#15271d] dark:text-zinc-100"}`}>
           {title}
         </span>
-        {description && <span className="mt-0.5 block text-xs leading-relaxed text-[#68776f]">{description}</span>}
+        {description && <span className="mt-0.5 block text-xs leading-relaxed text-[#68776f] dark:text-zinc-400">{description}</span>}
       </span>
       {children}
     </>
   );
 
-  const base = "flex w-full items-center gap-4 border-b border-[#eef3f0] px-4 py-4 last:border-b-0";
+  const base = "flex w-full items-center gap-4 border-b border-[#eef3f0] px-4 py-4 last:border-b-0 dark:border-[#1e3a2f]";
 
   if (onClick) {
     return (
@@ -108,7 +108,7 @@ function Row({
         type="button"
         onClick={onClick}
         disabled={disabled}
-        className={`${base} transition hover:bg-[#f7faf8] active:bg-[#eef3f0] disabled:opacity-60`}
+        className={`${base} transition hover:bg-[#f7faf8] active:bg-[#eef3f0] disabled:opacity-60 dark:hover:bg-[#1a2e26] dark:active:bg-[#1f332b]`}
       >
         {content}
         <ChevronRight className="h-5 w-5 shrink-0 text-[#b3c0b9]" aria-hidden="true" />
@@ -133,7 +133,7 @@ function Dialog({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-[#102218]/55 px-4 py-6 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-[#102218]/55 px-4 py-6 backdrop-blur-[2px] dark:bg-black/60"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onBackdrop();
       }}
@@ -142,7 +142,7 @@ function Dialog({
         role="alertdialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
-        className="w-full max-w-sm rounded-3xl border border-[#dfe9e2] bg-white p-6 shadow-2xl"
+        className="w-full max-w-sm rounded-3xl border border-[#dfe9e2] bg-white p-6 shadow-2xl dark:border-[#23473a] dark:bg-[#18231f]"
       >
         {children}
       </div>
@@ -172,7 +172,8 @@ export function SettingsModal({
 }) {
   const router = useRouter();
 
-  const [darkMode, setDarkMode] = useState(false);
+  const { resolvedTheme, setTheme } = useTheme();
+  const darkMode = resolvedTheme === "dark";
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -185,19 +186,6 @@ export function SettingsModal({
   const [proMessage, setProMessage] = useState("");
   const [proError, setProError] = useState("");
 
-  /* ---- initial dark mode ---- */
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(MODE_KEY);
-      if (stored === "dark" || stored === "light") {
-        setDarkMode(stored === "dark");
-        return;
-      }
-    } catch {
-      /* ignore */
-    }
-    setDarkMode(document.documentElement.classList.contains("dark"));
-  }, []);
 
   /* ---- lock body scroll ---- */
   useEffect(() => {
@@ -222,24 +210,7 @@ export function SettingsModal({
 
   /* ---- dark mode ---- */
   function toggleDarkMode(next: boolean) {
-    setDarkMode(next);
-    const mode = next ? "dark" : "light";
-
-    document.documentElement.classList.toggle("dark", next);
-    document.documentElement.dataset.theme = mode;
-
-    try {
-      window.localStorage.setItem(MODE_KEY, mode);
-
-      const legacy = window.localStorage.getItem(LEGACY_PREFS_KEY);
-      const parsed = legacy ? JSON.parse(legacy) : {};
-      window.localStorage.setItem(
-        LEGACY_PREFS_KEY,
-        JSON.stringify({ ...(parsed && typeof parsed === "object" ? parsed : {}), theme: mode }),
-      );
-    } catch {
-      /* storage unavailable, ignore */
-    }
+    setTheme(next ? "dark" : "light");
   }
 
   /* ---- logout ---- */

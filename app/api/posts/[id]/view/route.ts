@@ -50,9 +50,9 @@ export async function POST(
     const postsCollection = db.collection<PostDocument>("posts")
 
     const update: UpdateFilter<PostDocument> = {
-      $push: {
+      $addToSet: {
         opened: session.user.id,
-      },
+      } as unknown as UpdateFilter<PostDocument>,
     }
 
     const post = await postsCollection.findOneAndUpdate(

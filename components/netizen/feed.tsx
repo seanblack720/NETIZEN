@@ -1,12 +1,17 @@
 "use client";
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { groups } from "@/lib/netizen-data";
 import { Avatar } from "./app-shell";
 import { PostDetailModal } from "./post-detail-modal";
 import { PostCard } from "./post-card";
 import { createClientNotification } from "@/lib/notifications-client";
+
+function clamp(n: any) {
+  const v = Number(n);
+  return Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0;
+}
 
 export type FeedPost = {
   id?: string;
@@ -19,7 +24,10 @@ export type FeedPost = {
   likes?: number;
   comments?: number;
   shares?: number;
-  likedBy?: string[];
+  likedBy?: string[]; // legacy
+  highlightedBy?: string[];
+  scrolled?: string[];
+  scrolledAt?: Record<string, string>;
   opened?: string[];
   reshareOf?: string | null;
   reshareCount?: number;
@@ -125,6 +133,7 @@ export function Feed({
   const [selectedPost, setSelectedPost] = useState<FeedPost | null>(null);
   const [postLikes, setPostLikes] = useState<Record<string, { likes: number; hasLiked: boolean }>>({});
   const [postHighlights, setPostHighlights] = useState<Record<string, { highlightCount: number; highlighted: boolean }>>({});
+  const scrolledSentRef = React.useRef<Set<string>>(new Set());
 
   useEffect(() => {
     async function loadSession() {
@@ -227,12 +236,24 @@ export function Feed({
 
   function prependPost(newPost: FeedPost) {
     setPosts((currentPosts) => {
+      const hb = Array.isArray((newPost as any).highlightedBy)
+        ? (newPost as any).highlightedBy
+        : Array.isArray(newPost.highlightedByUser)
+          ? newPost.highlightedByUser!
+          : Array.isArray(newPost.likedBy)
+            ? newPost.likedBy
+            : [];
+      const reactions = (newPost as any).reactions && typeof (newPost as any).reactions === "object" && !Array.isArray((newPost as any).reactions) ? (newPost as any).reactions : {};
       const normalized = {
         ...newPost,
         likes: Number(newPost.likes ?? 0),
         comments: Number(newPost.comments ?? 0),
         shares: Number(newPost.shares ?? 0),
-        likedBy: Array.isArray(newPost.likedBy) ? newPost.likedBy : [],
+        likedBy: Array.isArray(newPost.likedBy) ? newPost.likedBy : hb,
+        highlightedBy: hb,
+        highlightedByUser: hb,
+        highlightCount: typeof newPost.highlightCount === "number" ? newPost.highlightCount : hb.length,
+        reactions,
         images: Array.isArray(newPost.images) ? newPost.images : [],
       };
 
@@ -349,16 +370,25 @@ export function Feed({
     setPosts((currentPosts) =>
       currentPosts.map((post) => {
         const postId = getPostId(post);
-        const likedBy = Array.isArray(post.likedBy) ? post.likedBy : [];
+        const hbArr: string[] = Array.isArray((post as any).highlightedBy)
+          ? (post as any).highlightedBy
+          : Array.isArray(post.highlightedByUser)
+            ? post.highlightedByUser!
+            : Array.isArray(post.likedBy)
+              ? post.likedBy
+              : [];
         const postLikeState = postLikes[postId];
 
         if (!postLikeState) return post;
 
         return {
           ...post,
-          likes: postLikeState.likes,
-          likedBy: postLikeState.hasLiked ? [...new Set([...likedBy, sessionUserId])] : likedBy.filter((id) => id !== sessionUserId),
-        };
+          likes: clamp(postLikeState.likes),
+          highlightedBy: postLikeState.hasLiked ? [...new Set([...hbArr, sessionUserId])] : hbArr.filter((id) => id !== sessionUserId),
+          highlightedByUser: postLikeState.hasLiked ? [...new Set([...hbArr, sessionUserId])] : hbArr.filter((id) => id !== sessionUserId),
+          likedBy: postLikeState.hasLiked ? [...new Set([...hbArr, sessionUserId])] : hbArr.filter((id) => id !== sessionUserId),
+          highlightCount: clamp(postLikeState.likes),
+        } as any;
       }),
     );
   }, [postLikes, sessionUserId]);
@@ -373,16 +403,22 @@ export function Feed({
       return;
     }
 
-    // Optimistic update
-    const wasLiked = postLikes[postId]?.hasLiked ?? post.likedBy?.includes(sessionUserId) ?? false;
-    const currentLikes = postLikes[postId]?.likes ?? post.likes ?? 0;
+    const hbArr: string[] = Array.isArray((post as any).highlightedBy)
+      ? (post as any).highlightedBy
+      : Array.isArray(post.highlightedByUser)
+        ? post.highlightedByUser!
+        : Array.isArray(post.likedBy)
+          ? post.likedBy
+          : [];
+    const wasLiked = postLikes[postId]?.hasLiked ?? hbArr.includes(sessionUserId) ?? false;
+    const currentLikes = clamp(postLikes[postId]?.likes ?? post.highlightCount ?? post.likes ?? hbArr.length);
 
-    setPostLikes(prev => ({
+    setPostLikes((prev) => ({
       ...prev,
       [postId]: {
-        likes: wasLiked ? currentLikes - 1 : currentLikes + 1,
-        hasLiked: !wasLiked
-      }
+        likes: clamp(wasLiked ? currentLikes - 1 : currentLikes + 1),
+        hasLiked: !wasLiked,
+      },
     }));
 
     try {
@@ -390,7 +426,7 @@ export function Feed({
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "like" }),
+        body: JSON.stringify({ action: "highlight" }),
       });
 
       const data = await response.json();
@@ -399,8 +435,15 @@ export function Feed({
         throw new Error(data?.message || "Unable to update like");
       }
 
-      const likedBy = Array.isArray(data?.post?.likedBy) ? data.post.likedBy : post.likedBy ?? [];
-      const likes = typeof data?.post?.likes === "number" ? data.post.likes : post.likes ?? 0;
+      const serverHb: string[] = Array.isArray(data?.post?.highlightedBy)
+        ? data.post.highlightedBy
+        : Array.isArray(data?.post?.highlightedByUser)
+          ? data.post.highlightedByUser
+          : Array.isArray(data?.post?.likedBy)
+            ? data.post.likedBy
+            : hbArr;
+      const likes = typeof data?.post?.highlightCount === "number" ? clamp(data.post.highlightCount) : typeof data?.post?.likes === "number" ? clamp(data.post.likes) : clamp(serverHb.length);
+      const likedBy = serverHb;
 
       if (!wasLiked && post.userId && post.userId !== sessionUserId) {
         await createClientNotification({
@@ -415,24 +458,17 @@ export function Feed({
         });
       }
 
-      updatePost(postId, { likedBy, likes });
-      setPostLikes(prev => ({
+      updatePost(postId, { likedBy, likes, highlightedBy: likedBy, highlightedByUser: likedBy, highlightCount: likes } as any);
+      setPostLikes((prev) => ({
         ...prev,
-        [postId]: {
-          likes,
-          hasLiked: likedBy.includes(sessionUserId)
-        }
+        [postId]: { likes: clamp(likes), hasLiked: likedBy.includes(sessionUserId) },
       }));
       setError("");
     } catch (err) {
       console.error("Like failed:", err);
-      // Revert optimistic update
-      setPostLikes(prev => ({
+      setPostLikes((prev) => ({
         ...prev,
-        [postId]: {
-          likes: currentLikes,
-          hasLiked: wasLiked
-        }
+        [postId]: { likes: clamp(currentLikes), hasLiked: wasLiked },
       }));
       setError(err instanceof Error ? err.message : "Unable to update like");
     }
@@ -445,19 +481,22 @@ export function Feed({
       setError("Please sign in to highlight posts.");
       return;
     }
+    const hb: string[] = Array.isArray((post as any).highlightedBy)
+      ? (post as any).highlightedBy
+      : Array.isArray(post.highlightedByUser)
+        ? post.highlightedByUser
+        : Array.isArray(post.likedBy)
+          ? post.likedBy
+          : [];
+    const wasHighlighted = hb.includes(sessionUserId);
+    const currentHighlights = clamp(post.highlightCount ?? hb.length);
 
-    const wasHighlighted = Array.isArray(post.highlightedByUser)
-      ? post.highlightedByUser.includes(sessionUserId)
-      : false;
-
-    const currentHighlights = post.highlightCount ?? 0;
-
-    setPostHighlights(prev => ({
+    setPostHighlights((prev) => ({
       ...prev,
       [postId]: {
-        highlightCount: wasHighlighted ? currentHighlights - 1 : currentHighlights + 1,
-        highlighted: !wasHighlighted
-      }
+        highlightCount: clamp(wasHighlighted ? currentHighlights - 1 : currentHighlights + 1),
+        highlighted: !wasHighlighted,
+      },
     }));
 
     try {
@@ -468,27 +507,29 @@ export function Feed({
         body: JSON.stringify({ highlighted: !wasHighlighted }),
       });
 
-      if (!response.ok) {
-        throw new Error("Unable to update highlight");
-      }
-
-      updatePost(postId, { highlightCount: !wasHighlighted ? currentHighlights + 1 : currentHighlights - 1 });
-      setPostHighlights(prev => ({
+      if (!response.ok) throw new Error("Unable to update highlight");
+      const data = await response.json().catch(() => ({}));
+      const serverCount = typeof data?.highlightCount === "number" ? clamp(data.highlightCount) : clamp(!wasHighlighted ? currentHighlights + 1 : currentHighlights - 1);
+      const serverHighlighted = typeof data?.highlighted === "boolean" ? data.highlighted : !wasHighlighted;
+      updatePost(postId, {
+        highlightCount: serverCount,
+        highlightedBy: serverHighlighted
+          ? [...new Set([...hb, sessionUserId])]
+          : hb.filter((id) => id !== sessionUserId),
+        highlightedByUser: serverHighlighted
+          ? [...new Set([...hb, sessionUserId])]
+          : hb.filter((id) => id !== sessionUserId),
+      } as any);
+      setPostHighlights((prev) => ({
         ...prev,
-        [postId]: {
-          highlightCount: !wasHighlighted ? currentHighlights + 1 : currentHighlights - 1,
-          highlighted: !wasHighlighted
-        }
+        [postId]: { highlightCount: serverCount, highlighted: serverHighlighted },
       }));
       setError("");
     } catch (err) {
       console.error("Highlight failed:", err);
-      setPostHighlights(prev => ({
+      setPostHighlights((prev) => ({
         ...prev,
-        [postId]: {
-          highlightCount: currentHighlights,
-          highlighted: wasHighlighted
-        }
+        [postId]: { highlightCount: currentHighlights, highlighted: wasHighlighted },
       }));
       setError(err instanceof Error ? err.message : "Unable to highlight post");
     }
@@ -505,8 +546,29 @@ export function Feed({
       return;
     }
 
-    // Optimistic update
-    applyCommentUpdate(postId, draft);
+    if (draft.length > 4000) {
+      setError("Comment is too long (max 4000 characters)");
+      return;
+    }
+
+    // Optimistic update – tracked so we can roll back on failure (no full-page refresh)
+    const optimisticId = `optimistic-${Date.now()}`;
+    const optimisticComment = {
+      _id: optimisticId,
+      userId: sessionUserId ?? "me",
+      userName: "You",
+      userImage: null,
+      content: draft,
+      createdAt: new Date().toISOString(),
+      likes: 0,
+      likedBy: [],
+      replies: [],
+    };
+    syncPostFromInteraction(postId, (p) => ({
+      ...p,
+      comments: Number(p.comments ?? 0) + 1,
+      commentsList: Array.isArray((p as any).commentsList) ? [...(p as any).commentsList, optimisticComment] : [optimisticComment],
+    }));
 
     try {
       const response = await fetch(`/api/posts/${postId}`, {
@@ -522,12 +584,27 @@ export function Feed({
         throw new Error(data?.message || "Unable to post comment");
       }
 
-      const comments = typeof data?.post?.comments === "number" ? data.post.comments : post.comments ?? 0;
-      updatePost(postId, { comments });
+      // Reconcile with server truth – replace optimistic list with canonical one
+      if (Array.isArray(data?.post?.commentsList)) {
+        updatePost(postId, { commentsList: data.post.commentsList, comments: Number(data.post.comments ?? 0) } as any);
+      } else {
+        const comments = typeof data?.post?.comments === "number" ? data.post.comments : post.comments ?? 0;
+        // remove optimistic and keep server count
+        syncPostFromInteraction(postId, (p) => {
+          const list = Array.isArray((p as any).commentsList) ? (p as any).commentsList.filter((c: any) => String(c._id) !== optimisticId) : [];
+          return { ...p, comments, commentsList: list } as any;
+        });
+        updatePost(postId, { comments });
+      }
       setCommentDrafts((current) => ({ ...current, [postId]: "" }));
       setCommentingId(null);
       setError("");
     } catch (err) {
+      // Roll back optimistic comment on failure
+      syncPostFromInteraction(postId, (p) => {
+        const list = Array.isArray((p as any).commentsList) ? (p as any).commentsList.filter((c: any) => String(c._id) !== optimisticId) : [];
+        return { ...p, comments: Math.max(0, Number(p.comments ?? 1) - 1), commentsList: list } as any;
+      });
       console.error("Comment failed:", err);
       setError(err instanceof Error ? err.message : "Unable to post comment");
     }
@@ -539,6 +616,10 @@ export function Feed({
     if (!postId) return;
 
     const shareUrl = `${window.location.origin}/posts/${postId}`;
+
+    // Optimistic increment – correct state, no full-page refresh, server reconciles
+    const previousShares = clamp(post.shares ?? 0);
+    updatePost(postId, { shares: clamp(previousShares + 1) });
 
     try {
       if (navigator.share) {
@@ -571,10 +652,13 @@ export function Feed({
         throw new Error(data?.message || "Unable to share post");
       }
 
-      const shares = typeof data?.post?.shares === "number" ? data.post.shares : post.shares ?? 0;
+      // Reconcile with DB truth – prevents duplicate increments from race conditions
+      const shares = typeof data?.post?.shares === "number" ? clamp(data.post.shares) : clamp(previousShares + 1);
       updatePost(postId, { shares });
       setError("");
     } catch (err) {
+      // rollback optimistic share on failure
+      updatePost(postId, { shares: previousShares });
       console.error("Share failed:", err);
       setError(err instanceof Error ? err.message : "Unable to share post");
     }
@@ -779,20 +863,62 @@ export function Feed({
 
       <Section title="RECENT POSTS" className="mt-3 sm:mt-6">
         {loading ? (
-          <div className="mx-3 rounded-2xl border border-[#edf3ee] bg-white p-5 text-sm text-[#5b6b62]">Loading posts...</div>
+          <div className="mx-3 rounded-2xl border border-[#edf3ee] bg-white p-5 text-sm text-[#5b6b62]">Loading posts…</div>
+        ) : error ? (
+          <div className="mx-3 rounded-2xl border border-[#f3d7d0] bg-[#fff4f1] p-5 text-sm text-[#7f362f]">
+            <span>{error}</span>{" "}
+            <button
+              type="button"
+              onClick={() => {
+                setError("");
+                setLoading(true);
+                fetch("/api/posts", { cache: "no-store", credentials: "include", headers: { "Content-Type": "application/json" } })
+                  .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+                  .then(({ ok, d }) => {
+                    if (!ok) throw new Error(d?.message || "Failed to load posts");
+                    setPosts(Array.isArray(d.posts) ? d.posts : []);
+                  })
+                  .catch((e) => setError(e instanceof Error ? e.message : "Failed to load posts"))
+                  .finally(() => setLoading(false));
+              }}
+              className="font-semibold underline underline-offset-2"
+            >
+              Retry
+            </button>
+          </div>
+        ) : posts.length === 0 ? (
+          <div className="mx-3 rounded-2xl border border-[#edf3ee] bg-white p-5 text-center text-sm text-[#5b6b62]">No posts yet — be the first to share something.</div>
         ) : (
           <div className="px-4 flex flex-col gap-1">
             {posts.map((post) => {
               const postId = getPostId(post);
+              // fire-and-forget scrolled tracking – set semantics so algorithm knows user saw it
+              if (
+                sessionUserId &&
+                postId &&
+                !(Array.isArray((post as any).scrolled) && (post as any).scrolled.includes(sessionUserId)) &&
+                !scrolledSentRef.current.has(postId)
+              ) {
+                scrolledSentRef.current.add(postId);
+                fetch(`/api/posts/${postId}`, {
+                  method: "PATCH",
+                  credentials: "include",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "scrolled" }),
+                }).catch(() => {});
+              }
               const imageList = Array.isArray(post.images)
                 ? post.images.filter((image): image is string => typeof image === "string" && image.trim().length > 0)
                 : [];
-              const isLiked = Boolean(
-                sessionUserId && Array.isArray(post.likedBy) && post.likedBy.includes(sessionUserId),
-              );
-              const isHighlighted = Boolean(
-                sessionUserId && Array.isArray(post.highlightedByUser) && post.highlightedByUser.includes(sessionUserId),
-              );
+              const legacyHb: string[] = Array.isArray((post as any).highlightedBy)
+                ? (post as any).highlightedBy
+                : Array.isArray(post.highlightedByUser)
+                  ? post.highlightedByUser!
+                  : Array.isArray((post as any).likedBy)
+                    ? (post as any).likedBy
+                    : [];
+              const isLiked = Boolean(sessionUserId && legacyHb.includes(sessionUserId));
+              const isHighlighted = Boolean(sessionUserId && legacyHb.includes(sessionUserId));
 
               return (
                 <PostCard

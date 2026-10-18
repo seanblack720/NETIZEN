@@ -39,7 +39,7 @@ function ActionButton({
     >
       {children}
       {showCount && typeof count === "number" && (
-        <span className="text-xs font-semibold tabular-nums">{count}</span>
+        <span className="text-xs font-semibold tabular-nums">{Math.max(0, count)}</span>
       )}
     </button>
   );

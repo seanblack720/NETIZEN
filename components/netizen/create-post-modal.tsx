@@ -32,7 +32,7 @@ type CreatePostModalProps = {
   }) => void;
 };
 
-const MAX_IMAGES = 4;
+const MAX_IMAGES = 10;
 const MAX_RAW_FILE_SIZE = 10 * 1024 * 1024; // 10MB — generous, since we compress before upload
 const MAX_DIMENSION = 1600; // longest edge, in pixels, after resizing
 const JPEG_QUALITY = 0.82;
@@ -205,6 +205,15 @@ export function CreatePostModal({ onClose, onPost }: CreatePostModalProps) {
     const content = body.trim();
 
     if (!content || loading || !user?.id) return;
+    if (content.length > 5000) {
+      setError("Post is too long (max 5000 characters)");
+      return;
+    }
+    if (images.length > MAX_IMAGES) {
+      setImageError(`You can attach up to ${MAX_IMAGES} images`);
+      setError(`You can attach up to ${MAX_IMAGES} images`);
+      return;
+    }
 
     try {
       setLoading(true);
@@ -212,20 +221,26 @@ export function CreatePostModal({ onClose, onPost }: CreatePostModalProps) {
 
       const response = await fetch("/api/posts", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           content,
-          userId: user.id,
           images, // base64 data-url strings, stored as-is on the post document
         }),
       });
 
-      const data = await response.json();
+      // Some error responses may not be JSON (e.g. 413 Payload Too Large)
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
 
       if (!response.ok) {
-        throw new Error(data.message || "Failed to create post");
+        throw new Error(data?.message || `Failed to create post${response.status === 413 ? " — images are too large" : ""}`);
       }
 
       const createdPost = {
@@ -240,7 +255,9 @@ export function CreatePostModal({ onClose, onPost }: CreatePostModalProps) {
         comments: 0,
         shares: 0,
         likedBy: [],
-        createdAt: new Date().toISOString(),
+        highlightedBy: [],
+        highlightCount: 0,
+        createdAt: data?.post?.createdAt ? String(data.post.createdAt) : new Date().toISOString(),
       };
 
       onPost?.(createdPost);

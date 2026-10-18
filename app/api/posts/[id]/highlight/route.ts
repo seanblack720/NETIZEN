@@ -24,23 +24,34 @@ export async function PATCH(
     const { highlighted } = body;
 
     const db = (await clientPromise).db(DB_NAME);
-    const highlightId = new ObjectId(id);
-    const userId = session.user.id;
+    const postObjId = new ObjectId(id);
+    const userId = String(session.user.id);
+
+    const post = await db.collection("posts").findOne({ _id: postObjId });
+    if (!post) return NextResponse.json({ message: "Post not found" }, { status: 404 });
+
+    const highlightedBy: string[] = Array.isArray(post.highlightedBy) ? post.highlightedBy : Array.isArray((post as any).likedBy) ? (post as any).likedBy : [];
+    const isHighlighted = highlightedBy.includes(userId);
 
     if (highlighted === false) {
-      // Remove highlight
-      await db.collection("highlights").deleteOne({ userId, postId: id });
-      return NextResponse.json({ success: true, highlighted: false });
+      if (!isHighlighted) return NextResponse.json({ success: true, highlighted: false, highlightCount: highlightedBy.length });
+      await db.collection("posts").updateOne({ _id: postObjId }, { $pull: { highlightedBy: userId } as any });
+      // keep legacy likedBy in sync
+      await db.collection("posts").updateOne({ _id: postObjId }, { $pull: { likedBy: userId } as any });
+      const updated = await db.collection("posts").findOne({ _id: postObjId });
+      const count = Array.isArray(updated?.highlightedBy) ? updated.highlightedBy.length : 0;
+      return NextResponse.json({ success: true, highlighted: false, highlightCount: Math.max(0, count) });
     }
 
-    // Add highlight (upsert)
-    await db.collection("highlights").updateOne(
-      { userId, postId: id },
-      { $set: { userId, postId: id, createdAt: new Date() } },
-      { upsert: true }
-    );
-
-    return NextResponse.json({ success: true, highlighted: true });
+    if (isHighlighted) {
+      return NextResponse.json({ success: true, highlighted: true, highlightCount: highlightedBy.length });
+    }
+    await db.collection("posts").updateOne({ _id: postObjId }, { $addToSet: { highlightedBy: userId } as any });
+    // also keep legacy field for old clients
+    await db.collection("posts").updateOne({ _id: postObjId }, { $addToSet: { likedBy: userId } as any });
+    const updated2 = await db.collection("posts").findOne({ _id: postObjId });
+    const count2 = Array.isArray(updated2?.highlightedBy) ? updated2.highlightedBy.length : 0;
+    return NextResponse.json({ success: true, highlighted: true, highlightCount: Math.max(0, count2) });
   } catch (error) {
     console.error("Highlight error:", error);
     return NextResponse.json(
@@ -61,14 +72,13 @@ export async function GET(
     }
 
     const { id } = await params;
+    if (!id || !ObjectId.isValid(id)) return NextResponse.json({ message: "Invalid post ID" }, { status: 400 });
     const db = (await clientPromise).db(DB_NAME);
-
-    const existing = await db.collection("highlights").findOne({
-      userId: session.user.id,
-      postId: id,
-    });
-
-    return NextResponse.json({ highlighted: !!existing });
+    const post = await db.collection("posts").findOne({ _id: new ObjectId(id) });
+    const arr: string[] = Array.isArray((post as any)?.highlightedBy) ? (post as any).highlightedBy : Array.isArray((post as any)?.likedBy) ? (post as any).likedBy : [];
+    const highlighted = arr.includes(String(session.user.id));
+    const highlightCount = Math.max(0, arr.length);
+    return NextResponse.json({ highlighted, highlightCount });
   } catch (error) {
     console.error("Highlight check error:", error);
     return NextResponse.json(

@@ -123,19 +123,14 @@ export function PostCard({
   }, [savedReactions]);
 
   const myReaction = sessionUserId ? reactionMap[sessionUserId] ?? null : null;
-
-  const currentLikes =
-    postLikes[postId]?.likes ?? post.likes ?? 0;
-
-  const likedByUser =
-    postLikes[postId]?.hasLiked ?? isLiked;
-
-  const openedCount = Array.isArray(post.opened)
-    ? post.opened.length
-    : 0;
-
-  const highlightCount = highlightState?.highlightCount ?? post.highlightCount ?? 0;
+  const reactionCountDisplay = Math.max(0, Object.keys(reactionMap).length);
+  const hasReaction = Boolean(myReaction);
+  // highlights: derived from highlightedBy array (keeps userIds for ranking) + optimistic highlightState
+  const highlightCount = Math.max(0, Math.floor(Number(highlightState?.highlightCount ?? post.highlightCount ?? (Array.isArray((post as any).highlightedBy) ? (post as any).highlightedBy.length : Array.isArray((post as any).likedBy) ? (post as any).likedBy.length : 0)) || 0));
   const highlightedByUser = highlightState?.highlighted ?? isHighlighted;
+  const currentLikes = postLikes[postId]?.likes ?? post.likes ?? 0;
+  const likedByUser = postLikes[postId]?.hasLiked ?? isLiked;
+  const openedCount = Array.isArray(post.opened) ? post.opened.length : 0;
 
   // Most used reaction on this post
   const topReaction = useMemo(() => {
@@ -207,6 +202,8 @@ export function PostCard({
       });
 
       if (!response.ok) throw new Error("Reaction failed");
+      const data = await response.json().catch(() => null);
+      if (data?.reactions && typeof data.reactions === "object") setReactionMap({ ...(data.reactions as Record<string,string>) });
     } catch (error) {
       console.error("Failed to save reaction:", error);
       apply(previous);
@@ -431,14 +428,14 @@ export function PostCard({
       {/* Reaction and comment summary */}
       <div className="mx-3 mt-3 flex items-center justify-between gap-2 border-b border-[#edf2ee] pb-2.5 text-xs text-[#718078] sm:mx-4">
         <span className="flex items-center gap-1.5">
-          {likedByUser && (
+          {hasReaction && (
             <Heart
               size={13}
               className="fill-[#f43f68] text-[#f43f68]"
             />
           )}
-          {currentLikes}{" "}
-          {currentLikes === 1 ? "reaction" : "reactions"}
+          {reactionCountDisplay}{" "}
+          {reactionCountDisplay === 1 ? "reaction" : "reactions"}
         </span>
 
         <button
@@ -446,8 +443,8 @@ export function PostCard({
           onClick={() => onSelectPost(post)}
           className="truncate text-right transition hover:text-[#168b45]"
         >
-          {post.comments ?? 0} comments ·{" "}
-          {post.shares ?? 0} shares
+          {Math.max(0, Number(post.comments ?? 0))} comments ·{" "}
+          {Math.max(0, Number(post.shares ?? 0))} shares
         </button>
       </div>
 
@@ -456,7 +453,7 @@ export function PostCard({
         <PostActionBar
           highlighted={highlightedByUser}
           highlightCount={highlightCount}
-          commentCount={post.comments ?? 0}
+          commentCount={Math.max(0, Number(post.comments ?? 0))}
           viewCount={openedCount}
           onAdd={() =>
             setShowReactions((value) => !value)

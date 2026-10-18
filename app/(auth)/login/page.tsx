@@ -171,12 +171,7 @@ export default function LoginPage() {
               Create one
             </Link>
           </p>
-          <p className="mt-2 text-center text-xs text-white/55">
-            Staff?{" "}
-            <Link href="/admin" className="font-semibold text-white/80 underline-offset-4 hover:underline">
-              Open admin dashboard
-            </Link>
-          </p>
+          
         </section>
       </div>
     </main>

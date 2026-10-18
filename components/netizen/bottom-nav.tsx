@@ -3,22 +3,37 @@
 import { type NavId, destinations } from "@/lib/netizen-data";
 import { NetizenIcon } from "./icon";
 import { PostButton } from "./post-button";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ComponentProps } from "react";
 import {
   Bookmark,
   LifeBuoy,
   RefreshCw,
   Settings,
   SquareChevronUp,
+  SquarePen,
   TrendingUp,
   UserPlus,
   type LucideIcon,
 } from "lucide-react";
 
+/** The icon names the app's own NetizenIcon accepts. */
+type NetizenIconName = ComponentProps<typeof NetizenIcon>["name"];
+
+export type CreateAction = "post" | "taxi-spot" | "video" | "phanda" | "khuluma";
+
 type BottomNavProps = {
   active: NavId;
   onNavigate: (id: NavId) => void;
-  onCreate: () => void;
+  /**
+   * Called when a tile in the create sheet is tapped. The sheet closes first.
+   * "post" | "taxi-spot" | "video" | "phanda" | "khuluma"
+   */
+  onCreateAction?: (action: CreateAction) => void;
+  /**
+   * Your existing "open the create post modal" handler. Used by "Make a post" (and as a fallback
+   * for the other tiles) when onCreateAction is not passed.
+   */
+  onCreate?: () => void;
   /** Called by the "Refresh feed" button, e.g. () => setRefreshKey((k) => k + 1) */
   onRefreshFeed?: () => void;
 };
@@ -33,10 +48,12 @@ type MenuItem = {
 export function BottomNav({
   active,
   onNavigate,
+  onCreateAction,
   onCreate,
   onRefreshFeed,
 }: BottomNavProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [navHeight, setNavHeight] = useState(64);
   const navRef = useRef<HTMLElement | null>(null);
 
@@ -45,11 +62,18 @@ export function BottomNav({
   );
 
   const closeMenu = () => setMenuOpen(false);
+  const closeCreate = () => setCreateOpen(false);
+  const closeAll = () => {
+    setMenuOpen(false);
+    setCreateOpen(false);
+  };
 
-  // While open: measure the nav (so the menu sits right above it),
+  const anyOpen = menuOpen || createOpen;
+
+  // While anything is open: measure the nav (so panels sit right above it),
   // close on Escape, and stop the page scrolling behind the blur.
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!anyOpen) return;
 
     const measure = () => {
       const height = navRef.current?.getBoundingClientRect().height;
@@ -58,7 +82,10 @@ export function BottomNav({
     measure();
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMenuOpen(false);
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        setCreateOpen(false);
+      }
     };
 
     window.addEventListener("keydown", onKeyDown);
@@ -72,7 +99,7 @@ export function BottomNav({
       window.removeEventListener("resize", measure);
       document.body.style.overflow = previous;
     };
-  }, [menuOpen]);
+  }, [anyOpen]);
 
   function handleRefreshFeed() {
     closeMenu();
@@ -80,6 +107,27 @@ export function BottomNav({
 
     if (onRefreshFeed) onRefreshFeed();
     else window.location.reload(); // fallback if the parent doesn't pass onRefreshFeed
+  }
+
+  const hasDestination = (id: string) => destinations.some((item) => String(item.id) === id);
+
+  function handleCreateAction(action: CreateAction) {
+    closeCreate();
+
+    if (onCreateAction) {
+      onCreateAction(action);
+      return;
+    }
+
+    // Fallbacks so every tile still does something before onCreateAction is wired up
+    if (action === "post" || action === "video") {
+      onCreate?.();
+      return;
+    }
+
+    const target = action === "taxi-spot" ? "taxis" : action; // "phanda" | "khuluma"
+    if (hasDestination(target)) onNavigate(target as NavId);
+    else onCreate?.();
   }
 
   // Placeholder options: swap each onSelect for the real action later.
@@ -102,24 +150,26 @@ export function BottomNav({
       key={item.id}
       type="button"
       onClick={() => {
-        closeMenu();
+        closeAll();
         onNavigate(item.id);
       }}
       aria-current={active === item.id ? "page" : undefined}
-      className={`flex min-h-10 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-0 px-1 text-[10px] font-medium transition-all duration-200 active:scale-95 ${
+      className={`flex min-h-10 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-0 px-0.5 text-[10px] font-medium transition-all duration-200 active:scale-95 ${
         active === item.id
           ? "bg-[#e7f7ed] text-[#07843b]"
           : "bg-transparent text-[#65756f] hover:bg-[#f2f6f3] hover:text-[#163d28]"
       }`}
     >
       <NetizenIcon name={item.icon} className="h-5 w-5" strokeWidth={2} />
-      <span>{item.label}</span>
+      <span className="whitespace-nowrap tracking-tight">
+        {item.id === "jobs" ? "Phanda & Jobs" : item.label}
+      </span>
     </button>
   );
 
   return (
     <>
-      {/* Blurred backdrop + menu. Sits BELOW the nav (z-39 vs z-40), so the nav stays visible and tappable. */}
+      {/* Expand menu: blurred backdrop + menu. Sits BELOW the nav (z-39 vs z-40), so the nav stays visible and tappable. */}
       <div
         className={`fixed inset-0 z-[39] transition-[visibility] duration-200 md:hidden ${
           menuOpen ? "visible" : "invisible"
@@ -179,9 +229,92 @@ export function BottomNav({
         </div>
       </div>
 
+      {/*
+        Create sheet. Same trick as the Expand menu: it sits BELOW the nav (z-39 vs z-40),
+        so the green + stays visible on top and turns into an X to close it.
+        The background is blurred, not darkened.
+      */}
+      <div
+        className={`fixed inset-0 z-[39] transition-[visibility] duration-200 md:hidden ${
+          createOpen ? "visible" : "invisible"
+        }`}
+        aria-hidden={!createOpen}
+      >
+        {/* Blur only: a very light tint so the feed behind is softened, not dimmed */}
+        <div
+          onClick={closeCreate}
+          className={`absolute inset-0 bg-white/10 backdrop-blur-lg transition-opacity duration-200 ${
+            createOpen ? "opacity-100" : "opacity-0"
+          }`}
+        />
+
+        {/* Full width, and it runs all the way down behind the nav so there is no seam between them */}
+        <div
+          role="dialog"
+          aria-label="Create"
+          style={{ paddingBottom: navHeight + 20, maxHeight: "calc(100dvh - 5rem)" }}
+          className={`absolute inset-x-0 bottom-0 overflow-y-auto overscroll-contain rounded-t-[1.75rem] border-t border-[#e3ebe6] bg-white px-4 pt-3 shadow-[0_-12px_36px_rgba(15,39,28,0.16)] transition duration-200 ease-out ${
+            createOpen ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
+          }`}
+        >
+          <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-[#dfe7e2]" aria-hidden="true" />
+
+          <div className="grid grid-cols-2 gap-3">
+            {/* Make a post: tall tile, spans two rows */}
+            <button
+              type="button"
+              onClick={() => handleCreateAction("post")}
+              className="row-span-2 flex flex-col items-center justify-center gap-3 rounded-2xl bg-[#e8f5ec] p-4 text-center transition active:scale-[0.98]"
+            >
+              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-white text-[#1c9d57] shadow-sm">
+                <SquarePen className="h-6 w-6" strokeWidth={2} aria-hidden="true" />
+              </span>
+              <span>
+                <span className="block text-sm font-bold text-[#15271d]">Make a post</span>
+                <span className="mt-1 block text-xs leading-snug text-[#68776f]">
+                  Share your thoughts with the community
+                </span>
+              </span>
+            </button>
+
+            <CreateTile
+              icon="car"
+              title="Upload taxi spot"
+              description="Share a rank or stop"
+              onClick={() => handleCreateAction("taxi-spot")}
+            />
+
+            <CreateTile
+              icon="play"
+              title="Upload video"
+              description="Share a video"
+              onClick={() => handleCreateAction("video")}
+            />
+
+            <CreateTile
+              icon="briefcase"
+              title="Phanda"
+              description="Services, sales and rentals"
+              onClick={() => handleCreateAction("phanda")}
+            />
+
+            <CreateTile
+              icon="megaphone"
+              title="Khuluma"
+              description="Anonymous. You confess, we listen."
+              onClick={() => handleCreateAction("khuluma")}
+            />
+          </div>
+        </div>
+      </div>
+
       <nav
         ref={navRef}
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-[#dbe7df]/80 bg-white/95 px-2 pb-[max(6px,env(safe-area-inset-bottom))] pt-1 shadow-[0_-6px_20px_rgba(20,48,34,0.08)] backdrop-blur-xl md:hidden"
+        className={`fixed inset-x-0 bottom-0 z-40 border-t px-2 pb-[max(6px,env(safe-area-inset-bottom))] pt-1 backdrop-blur-xl transition-[background-color,border-color,box-shadow] duration-200 md:hidden ${
+          createOpen
+            ? "border-transparent bg-white shadow-none"
+            : "border-[#dbe7df]/80 bg-white/95 shadow-[0_-6px_20px_rgba(20,48,34,0.08)]"
+        }`}
         aria-label="Secondary navigation"
       >
         <div className="mx-auto flex max-w-md items-end justify-between gap-1">
@@ -189,9 +322,10 @@ export function BottomNav({
           <div className="flex min-h-10 flex-1 justify-center">
             <PostButton
               compact
+              open={createOpen}
               onClick={() => {
                 closeMenu();
-                onCreate();
+                setCreateOpen((open) => !open);
               }}
             />
           </div>
@@ -200,10 +334,13 @@ export function BottomNav({
           {/* Expand */}
           <button
             type="button"
-            onClick={() => setMenuOpen((open) => !open)}
+            onClick={() => {
+              closeCreate();
+              setMenuOpen((open) => !open);
+            }}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
-            className={`flex min-h-10 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-0 px-1 text-[10px] font-medium transition-all duration-200 active:scale-95 ${
+            className={`flex min-h-10 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-0 px-0.5 text-[10px] font-medium transition-all duration-200 active:scale-95 ${
               menuOpen
                 ? "bg-[#e7f7ed] text-[#07843b]"
                 : "bg-transparent text-[#65756f] hover:bg-[#f2f6f3] hover:text-[#163d28]"
@@ -216,10 +353,39 @@ export function BottomNav({
               strokeWidth={2}
               aria-hidden="true"
             />
-            <span>Expand</span>
+            <span className="whitespace-nowrap tracking-tight">Expand</span>
           </button>
         </div>
       </nav>
     </>
+  );
+}
+
+function CreateTile({
+  icon,
+  title,
+  description,
+  onClick,
+}: {
+  icon: NetizenIconName;
+  title: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-[7.5rem] flex-col items-start justify-between rounded-2xl border border-[#e8eeea] bg-white p-3.5 text-left transition active:scale-[0.98]"
+    >
+      {/* Same green icon chip as the Expand menu, same icon renderer as the nav */}
+      <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#eef7f1] text-[#1c9d57]">
+        <NetizenIcon name={icon} className="h-5 w-5" strokeWidth={2} />
+      </span>
+      <span>
+        <span className="block text-sm font-bold text-[#15271d]">{title}</span>
+        <span className="mt-0.5 block text-xs leading-snug text-[#68776f]">{description}</span>
+      </span>
+    </button>
   );
 }

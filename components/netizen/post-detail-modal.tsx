@@ -8,9 +8,15 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  MoreHorizontal,
+  EyeOff,
+  Flag,
+  ThumbsUp,
+  Bookmark,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "./app-shell";
+import { PostImageGrid } from "./post-image-grid";
 import { ReplyModal } from "./reply-modal";
 import { useModalHistory } from "./use-modal-history";
 import { createClientNotification } from "@/lib/notifications-client";
@@ -41,6 +47,8 @@ type CommentItem = {
   replies?: CommentReply[];
 };
 
+function clamp0(n: any) { return Math.max(0, Math.floor(Number(n) || 0)); }
+
 type FeedPost = {
   id?: string;
   _id?: string;
@@ -52,7 +60,10 @@ type FeedPost = {
   likes?: number;
   comments?: number;
   shares?: number;
-  likedBy?: string[];
+  likedBy?: string[]; // legacy -> maps to highlightedBy
+  highlightedBy?: string[];
+  scrolled?: string[];
+  scrolledAt?: Record<string, string>;
   opened?: string[];
   reactions?: Record<string, string> | null; // { [userId]: emoji }
   reshareOf?: string | null;
@@ -286,29 +297,33 @@ function ImageViewer({
 export function PostDetailModal({
   post,
   onClose,
+  onSelectPost,
   sessionUserId,
 }: {
   post: FeedPost;
   onClose: () => void;
+  onSelectPost?: (post: FeedPost) => void;
   sessionUserId: string | null;
 }) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
-  const [likeCount, setLikeCount] = useState(post.likes ?? 0);
-  const [shareCount, setShareCount] = useState(post.shares ?? 0);
-  const [openedCount, setOpenedCount] = useState(
-    Array.isArray(post.opened) ? post.opened.length : 0
-  );
-  const [highlightCount, setHighlightCount] = useState(post.highlightCount ?? 0);
+  const deriveHb = (p: FeedPost): string[] =>
+    Array.isArray((p as any).highlightedBy)
+      ? (p as any).highlightedBy
+      : Array.isArray(p.highlightedByUser)
+        ? p.highlightedByUser!
+        : Array.isArray(p.likedBy)
+          ? p.likedBy!
+          : [];
+  const [likeCount, setLikeCount] = useState(clamp0(deriveHb(post).length || post.highlightCount || post.likes));
+  const [shareCount, setShareCount] = useState(clamp0(post.shares));
+  const [openedCount, setOpenedCount] = useState(clamp0(Array.isArray(post.opened) ? post.opened.length : 0));
+  const [highlightCount, setHighlightCount] = useState(clamp0(deriveHb(post).length || post.highlightCount || 0));
   const [hasHighlighted, setHasHighlighted] = useState(
-    Array.isArray(post.highlightedByUser) && sessionUserId
-      ? post.highlightedByUser.includes(sessionUserId)
-      : false
+    sessionUserId ? deriveHb(post).includes(sessionUserId) : false
   );
   const [hasLiked, setHasLiked] = useState(
-    Array.isArray(post.likedBy) && sessionUserId
-      ? post.likedBy.includes(sessionUserId)
-      : false
+    sessionUserId ? deriveHb(post).includes(sessionUserId) : false
   );
   const [reactionMap, setReactionMap] = useState<Record<string, string>>(
     () =>
@@ -335,13 +350,16 @@ export function PostDetailModal({
   );
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const discussionRef = useRef<HTMLDivElement | null>(null);
   const viewLoggedRef = useRef(false);
 
   useModalHistory(onClose);
 
-  const imageList = (post.images || []).filter(
+  const imageList = (
+    (post.reshareOf && post.reshareData?.originalImages ? post.reshareData.originalImages : post.images) || []
+  ).filter(
     (image): image is string => typeof image === "string" && image.trim().length > 0
   );
   const totalImages = imageList.length;
@@ -358,16 +376,19 @@ export function PostDetailModal({
   );
 
   const myReaction = sessionUserId ? reactionMap[sessionUserId] ?? null : null;
+  const reactionCountDisplay = clamp0(Object.keys(reactionMap).length);
+  const hasReaction = Boolean(myReaction);
 
-  // Who has liked the post right now (server data adjusted by the local like state)
+  // Who has highlighted the post right now (server data adjusted by the local like state) – likes == highlights now
   const likedByIds = useMemo(() => {
-    const ids = new Set(Array.isArray(post.likedBy) ? post.likedBy : []);
+    const base = deriveHb(post);
+    const ids = new Set(base);
     if (sessionUserId) {
       if (hasLiked) ids.add(sessionUserId);
       else ids.delete(sessionUserId);
     }
     return [...ids];
-  }, [post.likedBy, hasLiked, sessionUserId]);
+  }, [(post as any).highlightedBy, (post as any).highlightedByUser, post.likedBy, hasLiked, sessionUserId]);
 
   // Most used reaction on this post
   const topReaction = useMemo(() => {
@@ -444,24 +465,38 @@ export function PostDetailModal({
     const previousCount = likeCount;
 
     setHasLiked(!hasLiked);
-    setLikeCount(!hasLiked ? likeCount + 1 : likeCount - 1);
+    setLikeCount(clamp0(!hasLiked ? likeCount + 1 : likeCount - 1));
+    // highlight is the same as like now – keep in sync and clamp
+    setHasHighlighted(!hasLiked);
+    setHighlightCount(clamp0(!hasLiked ? highlightCount + 1 : highlightCount - 1));
 
     try {
       const response = await fetch(`/api/posts/${post._id ?? post.id}`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "like" }),
+        body: JSON.stringify({ action: "highlight" }),
       });
 
       if (!response.ok) {
         setHasLiked(previousLiked);
-        setLikeCount(previousCount);
+        setLikeCount(clamp0(previousCount));
+        setHasHighlighted(previousLiked);
+        setHighlightCount(clamp0(previousCount));
+      } else {
+        const data = await response.json().catch(() => ({}));
+        if (typeof data?.highlightCount === "number") {
+          const c = clamp0(data.highlightCount);
+          setLikeCount(c);
+          setHighlightCount(c);
+        }
       }
     } catch (error) {
       console.error("Failed to like post:", error);
       setHasLiked(previousLiked);
-      setLikeCount(previousCount);
+      setLikeCount(clamp0(previousCount));
+      setHasHighlighted(previousLiked);
+      setHighlightCount(clamp0(previousCount));
     }
   }
 
@@ -470,7 +505,10 @@ export function PostDetailModal({
     const previousCount = highlightCount;
 
     setHasHighlighted(!hasHighlighted);
-    setHighlightCount(!hasHighlighted ? highlightCount + 1 : highlightCount - 1);
+    setHighlightCount(clamp0(!hasHighlighted ? highlightCount + 1 : highlightCount - 1));
+    // keep like in sync
+    setHasLiked(!hasHighlighted);
+    setLikeCount(clamp0(!hasHighlighted ? likeCount + 1 : likeCount - 1));
 
     try {
       const response = await fetch(`/api/posts/${post._id ?? post.id}/highlight`, {
@@ -482,12 +520,23 @@ export function PostDetailModal({
 
       if (!response.ok) {
         setHasHighlighted(previous);
-        setHighlightCount(previousCount);
+        setHighlightCount(clamp0(previousCount));
+        setHasLiked(previous);
+        setLikeCount(clamp0(previousCount));
+      } else {
+        const data = await response.json().catch(() => ({}));
+        if (typeof data?.highlightCount === "number") {
+          const c = clamp0(data.highlightCount);
+          setHighlightCount(c);
+          setLikeCount(c);
+        }
       }
     } catch (error) {
       console.error("Failed to highlight post:", error);
       setHasHighlighted(previous);
-      setHighlightCount(previousCount);
+      setHighlightCount(clamp0(previousCount));
+      setHasLiked(previous);
+      setLikeCount(clamp0(previousCount));
     }
   }
 
@@ -517,6 +566,10 @@ export function PostDetailModal({
       });
 
       if (!response.ok) throw new Error("Reaction failed");
+      const data = await response.json().catch(() => null);
+      if (data?.reactions && typeof data.reactions === "object") {
+        setReactionMap({ ...(data.reactions as Record<string,string>) });
+      }
     } catch (error) {
       console.error("Failed to save reaction:", error);
       apply(previous);
@@ -901,80 +954,107 @@ export function PostDetailModal({
         >
           <X size={20} />
         </button>
+        <button
+          type="button"
+          onClick={() => setMenuOpen(!menuOpen)}
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[#1a2c22] transition hover:bg-[#f2f6f3]"
+          aria-label="Post options"
+          aria-expanded={menuOpen}
+        >
+          <MoreHorizontal size={20} />
+        </button>
+
+        {menuOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center"
+              onClick={() => setMenuOpen(false)}
+              aria-hidden="true"
+            ></div>
+            <div className="absolute right-2 top-6 w-64 rounded-xl border border-[#dfe7e4] bg-white p-2 shadow-2xl z-50 animate-in fade-in zoom-in duration-200">
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-[#647994] hover:bg-[#f0f8f3] transition"
+                >
+                  <EyeOff size={16} className="shrink-0" />
+                  <span>Remove from feed</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-[#647994] hover:bg-[#f0f8f3] transition border-t border-[#e5ece7] pt-4"
+                >
+                  <Flag size={16} className="shrink-0" />
+                  <span>Report content</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-[#647994] hover:bg-[#f0f8f3] transition border-t border-[#e5ece7] pt-4"
+                >
+                  <ThumbsUp size={16} className="shrink-0" />
+                  <span>See more of this</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-[#647994] hover:bg-[#f0f8f3] transition border-t border-[#e5ece7] pt-4"
+                >
+                  <Bookmark size={16} className="shrink-0" />
+                  <span>Save</span>
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Reshare indicator */}
       {post.reshareOf && post.reshareData && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-[#e3ebe6] bg-[#f7faf8] px-5 py-3 md:px-6">
-          <svg className="h-4 w-4 text-[#1c9d57]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M17 1l4 4-4 4" />
-            <path d="M3 11V9a4 4 0 014-4h14" />
-            <path d="M7 23l-4-4 4-4" />
-            <path d="M21 13v2a4 4 0 01-4 4H3" />
+        <button
+          type="button"
+          onClick={() => onSelectPost?.(post)}
+          className="w-full flex items-center justify-between gap-2 rounded-lg border-b border-[#e3ebe6] bg-[#f7faf8] px-3 py-3 text-sm text-[#5f7073] transition hover:bg-[#e7f7ed]"
+        >
+          <div className="flex items-center gap-2">
+            <svg className="h-4 w-4 text-[#1c9d57]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 1l4 4-4 4" />
+              <path d="M3 11V9a4 4 0 014-4h14" />
+              <path d="M7 23l-4-4 4-4" />
+              <path d="M21 13v2a4 4 0 01-4 4H3" />
+            </svg>
+            <span className="text-sm text-[#5f7073]">
+              <b className="text-[#1c9d57]">{post.userName}</b> reshared a post by{" "}
+              <b className="text-[#1c9d57]">{post.reshareData.originalUserName || "Unknown user"}</b>
+            </span>
+          </div>
+          <svg className="h-4 w-4 shrink-0 text-[#1c9d57]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 5l6 6-6 6" />
           </svg>
-          <span className="text-sm text-[#5f7073]">
-            <b className="text-[#1c9d57]">{post.userName}</b> reshared a post by{" "}
-            <b className="text-[#1c9d57]">{post.reshareData.originalUserName || "Unknown user"}</b>
-          </span>
-        </div>
+        </button>
       )}
 
       {/* =========================================================
           MAIN SCROLL AREA
       ========================================================== */}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-21.5">
-        {/* =======================================================
-            NESTED ORIGINAL POST (for reshared posts)
-        ======================================================== */}
-        {post.reshareOf && post.reshareData && (
-          <div className="shrink-0 border-b border-[#e3ebe6] bg-[#fafdfb] px-5 py-4 md:px-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e8efe8] text-sm font-semibold text-[#2f6b4f]">
-                {post.reshareData.originalUserImage ? (
-                  <img
-                    src={post.reshareData.originalUserImage}
-                    alt={post.reshareData.originalUserName || "User"}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <span>
-                    {(post.reshareData.originalUserName || "U").slice(0, 2).toUpperCase()}
-                  </span>
-                )}
-              </div>
-              <div className="min-w-0">
-                <p className="truncate font-semibold text-[#15271d]">
-                  {post.reshareData.originalUserName}
-                </p>
-                <p className="text-xs text-[#9aa79f]">
-                  @{(post.reshareData.originalUserName || "user").toLowerCase().replace(/\s+/g, ".")}
-                </p>
-              </div>
-            </div>
-            {post.reshareData.originalContent?.trim() ? (
-              <p className="mt-3 whitespace-pre-wrap text-[15px] leading-6 text-[#1d2c23]">
-                {post.reshareData.originalContent}
-              </p>
-            ) : null}
-            {Array.isArray(post.reshareData.originalImages) && post.reshareData.originalImages.length > 0 && (
-              <div className="mt-3 overflow-hidden rounded-xl">
-                <img
-                  src={post.reshareData.originalImages[0]}
-                  alt="Original post"
-                  className="h-[300px] w-full object-cover"
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* =======================================================
-            DESCRIPTION
-        ======================================================== */}
-        {post.content?.trim() && !post.reshareOf ? (
+        {/* Description: show reshared post content if it's a reshare, otherwise own content */}
+        {(post.reshareOf && post.reshareData?.originalContent?.trim()) || post.content?.trim() ? (
           <div className="shrink-0 border-b border-[#e3ebe6] bg-white px-5 py-4 md:px-6">
             <p className="whitespace-pre-wrap text-[16px] font-medium leading-7 text-[#15271d]">
-              {post.content}
+              {post.reshareOf && post.reshareData?.originalContent?.trim()
+                ? post.reshareData.originalContent
+                : post.content}
             </p>
           </div>
         ) : null}
@@ -983,6 +1063,13 @@ export function PostDetailModal({
             IMAGES: swipe, buttons, tap for full screen
         ======================================================== */}
         {totalImages > 0 && (
+          <div className="shrink-0 bg-white px-3 py-3">
+            <PostImageGrid images={imageList} onImageClick={(i) => setViewerIndex(i)} />
+          </div>
+        )}
+
+        {/* legacy swipe detail – hidden now that grid is primary; keep for fallback if needed */}
+        {false && totalImages > 0 && (
           <div className="relative shrink-0 bg-black">
             <div
               className="touch-pan-y select-none overflow-hidden"
@@ -1062,14 +1149,14 @@ export function PostDetailModal({
           {/* Summary */}
           <div className="mx-3 mt-3 flex items-center justify-between gap-2 border-b border-[#edf2ee] pb-2.5 text-xs text-[#718078]">
             <span className="flex items-center gap-1.5">
-              {hasLiked && (
+              {hasReaction && (
                 <Heart size={13} className="fill-[#f43f68] text-[#f43f68]" />
               )}
-              {likeCount} {likeCount === 1 ? "reaction" : "reactions"}
+              {reactionCountDisplay} {reactionCountDisplay === 1 ? "reaction" : "reactions"}
             </span>
 
             <span className="truncate text-right">
-              {commentsList.length} comments · {shareCount} shares
+              {clamp0(commentsList.length)} comments · {clamp0(shareCount)} shares
             </span>
           </div>
 

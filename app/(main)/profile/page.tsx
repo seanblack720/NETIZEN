@@ -470,22 +470,29 @@ export default function UserPage() {
                           </div>
                         ) : (
                           <div className="grid grid-cols-2 gap-1">
-                            {imageList.slice(0, 4).map((image, index) => (
-                              <div
-                                key={`${postId}-image-${index}`}
-                                className={`relative overflow-hidden ${
-                                  imageList.length === 3 && index === 2
-                                    ? "col-span-2 h-56"
-                                    : "h-52"
-                                }`}
-                              >
-                                <img
-                                  src={image}
-                                  alt={`Post ${index + 1}`}
-                                  className="h-full w-full object-cover"
-                                />
-                              </div>
-                            ))}
+                            {imageList.slice(0, 4).map((image, index) => {
+                              const extra = imageList.length - 4;
+                              const isLast = index === 3 && extra > 0;
+                              return (
+                                <div
+                                  key={`${postId}-image-${index}`}
+                                  className={`relative overflow-hidden ${
+                                    imageList.length === 3 && index === 2 ? "col-span-2 h-56" : "h-52"
+                                  }`}
+                                >
+                                  <img
+                                    src={image}
+                                    alt={`Post ${index + 1}`}
+                                    className="h-full w-full object-cover"
+                                  />
+                                  {isLast && (
+                                    <span className="absolute inset-0 grid place-items-center bg-black/55 text-xl font-bold text-white">
+                                      +{extra}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>

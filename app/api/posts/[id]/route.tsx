@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth'
 import { ObjectId } from 'mongodb'
 
 const DB_NAME = 'netizen'
-const MAX_IMAGES = 4
+const MAX_IMAGES = 10
 const MAX_IMAGE_STRING_LENGTH = 7_000_000
 
 // Must match the emojis in the reaction picker
@@ -19,17 +19,48 @@ const ALLOWED_ACTIONS = [
   'share',
   'view',
   'reshare',
+  'scrolled',
+  'highlight',
 ]
+
+function clampNonNegative(n: any) {
+  const v = Number(n)
+  return Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0
+}
 
 function normalizePost(post: Record<string, any>) {
   if (!post) return null
 
   const id = post._id ? String(post._id) : null
 
+  // derive highlightedBy from either new field or legacy likedBy
+  const highlightedByRaw = Array.isArray(post.highlightedBy) ? post.highlightedBy : Array.isArray(post.likedBy) ? post.likedBy : []
+  const highlightCount = highlightedByRaw.length
+  const reactionsRaw = post.reactions && typeof post.reactions === "object" && !Array.isArray(post.reactions) ? (post.reactions as Record<string, string>) : {}
+
   return {
     ...post,
     id,
     _id: id,
+    // always expose new fields
+    highlightedBy: highlightedByRaw,
+    highlightCount: Math.max(0, highlightCount),
+    highlightedByUser: highlightedByRaw,
+    likedBy: highlightedByRaw,
+    reactions: reactionsRaw,
+    scrolled: Array.isArray(post.scrolled) ? post.scrolled : [],
+    scrolledAt: post.scrolledAt && typeof post.scrolledAt === 'object' ? post.scrolledAt : {},
+    likes: clampNonNegative(post.likes),
+    comments: clampNonNegative(post.comments),
+    shares: clampNonNegative(post.shares),
+    reshareCount: clampNonNegative(post.reshareCount),
+    // clamp comment likes too
+    commentsList: Array.isArray(post.commentsList) ? post.commentsList.map((c: any) => ({
+      ...c,
+      likes: clampNonNegative(c.likes),
+      likedBy: Array.isArray(c.likedBy) ? c.likedBy : [],
+      replies: Array.isArray(c.replies) ? c.replies.map((r: any) => ({ ...r, likes: clampNonNegative(r.likes), likedBy: Array.isArray(r.likedBy) ? r.likedBy : [] })) : [],
+    })) : post.commentsList,
   }
 }
 
@@ -372,37 +403,89 @@ export async function PATCH(
     }
 
     if (action === 'like') {
+      // like is deprecated – use highlight instead, but keep for backward compat
+      // Map like -> highlight (highlightedBy) and clamp counts to 0
       if (!session?.user) {
         return NextResponse.json(
           { success: false, message: 'You must be signed in to like a post' },
           { status: 401 }
         )
       }
-
-      const likedBy = Array.isArray(post.likedBy) ? post.likedBy : []
-      const hasLiked = likedBy.includes(session.user.id)
-
-      const updateOps = hasLiked
-        ? {
-            $pull: { likedBy: session.user.id } as any,
-            $inc: { likes: -1 },
-          }
-        : {
-            $addToSet: { likedBy: session.user.id } as any,
-            $inc: { likes: 1 },
-          }
-
+      const uid = String(session.user.id)
+      const highlightedByArr: string[] = Array.isArray(post.highlightedBy) ? post.highlightedBy : Array.isArray(post.likedBy) ? post.likedBy : []
+      const hasLiked = highlightedByArr.includes(uid)
+      // clamp after update via normalizePost; also prevent negative likes with aggregation pipeline guard
       const result = await db.collection('posts').findOneAndUpdate(
         { _id: postId },
-        updateOps as any,
+        hasLiked
+          ? ({ $pull: { highlightedBy: uid } as any })
+          : ({ $addToSet: { highlightedBy: uid } as any }),
         { returnDocument: 'after' }
       )
-
+      // keep legacy likedBy in sync
+      await db.collection('posts').updateOne(
+        { _id: postId },
+        hasLiked ? ({ $pull: { likedBy: uid } as any }) : ({ $addToSet: { likedBy: uid } as any })
+      )
+      // clamp likes field to 0 if needed
+      const after = unwrap(result, post)
+      const cnt = Array.isArray(after?.highlightedBy) ? after.highlightedBy.length : 0
+      await db.collection('posts').updateOne({ _id: postId }, { $set: { likes: Math.max(0, cnt) } } as any)
+      const fresh = await db.collection('posts').findOne({ _id: postId })
       return NextResponse.json({
         success: true,
         liked: !hasLiked,
-        post: normalizePost(unwrap(result, post)),
+        post: normalizePost(unwrap(fresh, after)),
       })
+    }
+
+    if (action === 'highlight') {
+      if (!session?.user) {
+        return NextResponse.json(
+          { success: false, message: 'You must be signed in to highlight' },
+          { status: 401 }
+        )
+      }
+      const uid = String(session.user.id)
+      const highlightedByArr: string[] = Array.isArray(post.highlightedBy) ? post.highlightedBy : Array.isArray(post.likedBy) ? post.likedBy : []
+      const hasHighlighted = highlightedByArr.includes(uid)
+      await db.collection('posts').updateOne(
+        { _id: postId },
+        hasHighlighted ? ({ $pull: { highlightedBy: uid } as any }) : ({ $addToSet: { highlightedBy: uid } as any })
+      )
+      await db.collection('posts').updateOne(
+        { _id: postId },
+        hasHighlighted ? ({ $pull: { likedBy: uid } as any }) : ({ $addToSet: { likedBy: uid } as any })
+      )
+      const upd = await db.collection('posts').findOne({ _id: postId })
+      const cnt2 = Array.isArray(upd?.highlightedBy) ? upd.highlightedBy.length : 0
+      await db.collection('posts').updateOne({ _id: postId }, { $set: { likes: Math.max(0, cnt2) } } as any)
+      const fresh2 = await db.collection('posts').findOne({ _id: postId })
+      return NextResponse.json({
+        success: true,
+        highlighted: !hasHighlighted,
+        highlightCount: Math.max(0, cnt2),
+        post: normalizePost(fresh2 as any),
+      })
+    }
+
+    if (action === 'scrolled') {
+      if (!session?.user?.id) {
+        return NextResponse.json({ success: true, post: normalizePost(post) })
+      }
+      const uid = String(session.user.id)
+      const already = Array.isArray(post.scrolled) && post.scrolled.includes(uid)
+      if (already) {
+        return NextResponse.json({ success: true, post: normalizePost(post) })
+      }
+      const today = new Date().toISOString().slice(0, 10)
+      const field = `scrolledAt.${uid}`
+      const result = await db.collection('posts').findOneAndUpdate(
+        { _id: postId },
+        { $addToSet: { scrolled: uid } as any, $set: { [field]: today } as any },
+        { returnDocument: 'after' }
+      )
+      return NextResponse.json({ success: true, post: normalizePost(unwrap(result, post)) })
     }
 
     // -----------------------------------------------------------------
@@ -477,6 +560,21 @@ export async function PATCH(
           { success: false, message: 'Comment text is required' },
           { status: 400 }
         )
+      }
+      if (commentText.length > 4000) {
+        return NextResponse.json({ success: false, message: 'Comment is too long (max 4000 characters)' }, { status: 400 })
+      }
+      // prevent duplicate submission within short window (same user, same post, same text in last 10s)
+      const recentDup = Array.isArray(post.commentsList)
+        ? (post.commentsList as Record<string, unknown>[]).some((c) => {
+            const sameContent = String(c.content ?? '').trim() === commentText
+            const sameUser = String(c.userId ?? '') === String(session.user.id)
+            const created = c.createdAt ? new Date(String(c.createdAt)) : null
+            return sameContent && sameUser && created && Date.now() - created.getTime() < 10000
+          })
+        : false
+      if (recentDup) {
+        return NextResponse.json({ success: false, message: 'Duplicate comment detected. Please wait a moment.' }, { status: 429 })
       }
 
       const comment = {
@@ -607,6 +705,26 @@ export async function PATCH(
           { status: 400 }
         )
       }
+      if (replyText.length > 3000) {
+        return NextResponse.json({ success: false, message: 'Reply is too long (max 3000 characters)' }, { status: 400 })
+      }
+      // optional replyTo username
+      const replyToNameRaw = typeof body.replyTo === 'string' ? body.replyTo.trim().slice(0, 120) : ''
+      const recentReplyDup = (() => {
+        const commentsList = Array.isArray(post.commentsList) ? post.commentsList : []
+        const target = (commentsList as Record<string, unknown>[]).find((c) => String((c as Record<string, unknown>)._id) === String(commentId))
+        if (!target || !Array.isArray((target as Record<string, unknown>).replies)) return false
+        const replies = (target as Record<string, unknown>).replies as Record<string, unknown>[]
+        return replies.some((r) => {
+          const sameContent = String(r.content ?? '').trim() === replyText
+          const sameUser = String(r.userId ?? '') === String(session.user.id)
+          const created = r.createdAt ? new Date(String(r.createdAt)) : null
+          return sameContent && sameUser && created && Date.now() - created.getTime() < 10000
+        })
+      })()
+      if (recentReplyDup) {
+        return NextResponse.json({ success: false, message: 'Duplicate reply detected. Please wait a moment.' }, { status: 429 })
+      }
 
       const commentsList = Array.isArray(post.commentsList) ? post.commentsList : []
       const targetIndex = commentsList.findIndex((comment) => String(comment._id) === String(commentId))
@@ -623,11 +741,11 @@ export async function PATCH(
         userId: session.user.id,
         userName: session.user.name || 'Unknown user',
         userImage: session.user.image || null,
+        replyTo: replyToNameRaw ? { userName: replyToNameRaw } : null,
         content: replyText,
         createdAt: new Date(),
         likes: 0,
         likedBy: [],
-        replies: [],
       }
 
       const updatedComments = commentsList.map((comment, index) => {
@@ -653,7 +771,6 @@ export async function PATCH(
     }
 
     if (action === 'view') {
-      // Signed-out visitors aren't recorded (this used to push `undefined` into `opened`)
       if (!session?.user?.id) {
         return NextResponse.json({
           success: true,
@@ -661,9 +778,10 @@ export async function PATCH(
         })
       }
 
+      // $addToSet prevents duplicate views from inflating the count — idempotent per user
       const result = await db.collection('posts').findOneAndUpdate(
         { _id: postId },
-        { $push: { opened: session.user.id } as any },
+        { $addToSet: { opened: session.user.id } as any },
         { returnDocument: 'after' }
       )
 

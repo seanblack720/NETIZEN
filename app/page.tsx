@@ -14,6 +14,7 @@ import { destinationPages } from "@/components/netizen/destination-pages";
 import { suggestedPeople, type NavId } from "@/lib/netizen-data";
 import { SettingsModal } from "@/components/netizen/settings-modal";
 import { ProfileEditorModal } from "@/components/netizen/profile-editor-modal";
+import { AuthGate } from "@/components/netizen/auth-gate";
 
 function RightRail() {
   return (
@@ -159,7 +160,8 @@ export default function HomePage() {
       : destinationPages[active];
 
   return (
-    <>
+    <AuthGate>
+      <>
       <AppShell
         active={active}
         onNavigate={setActive}
@@ -218,6 +220,7 @@ export default function HomePage() {
       {profileEditorOpen && (
         <ProfileEditorModal onClose={() => setProfileEditorOpen(false)} />
       )}
-    </>
+      </>
+    </AuthGate>
   );
 }

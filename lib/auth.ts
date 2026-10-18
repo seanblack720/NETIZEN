@@ -21,8 +21,22 @@ export const auth = betterAuth({
     minPasswordLength: 8,
   },
   plugins: [nextCookies()],
+  ...(process.env.NODE_ENV === "development"
+    ? {
+        advanced: {
+          defaultCookieAttributes: {
+            sameSite: "none" as const,
+            secure: true,
+          },
+        },
+      }
+    : {}),
   trustedOrigins: [
     "http://localhost:3000",
     process.env.NEXT_PUBLIC_APP_URL ?? "",
+    process.env.V0_RUNTIME_URL ?? "",
+    process.env.V0_DEV_APP_URL ?? "",
+    process.env.V0_BUILD_URL ?? "",
+    process.env.V0_SANDBOX_URL ?? "",
   ].filter(Boolean),
 });

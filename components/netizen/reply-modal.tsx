@@ -103,16 +103,21 @@ export function ReplyModal({
                     className="rounded-xl bg-[#f5f7f5] p-3"
                   >
                     <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e8efe8] text-xs font-semibold text-[#2f6b4f]">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#dff1e5] text-xs font-semibold text-[#176b3a]">
                         {reply.userImage ? (
                           <img
                             src={reply.userImage}
                             alt={reply.userName || "User"}
                             className="h-full w-full object-cover"
-                            onError={(e) => { (e.target as HTMLImageElement).src = "/shadow.png"; }}
                           />
                         ) : (
-                          <img src="/shadow.png" alt={reply.userName || "User"} className="h-full w-full object-cover" />
+                          (reply.userName || "User")
+                            .trim()
+                            .split(/\\s+/)
+                            .map((part) => part[0])
+                            .join("")
+                            .slice(0, 2)
+                            .toUpperCase()
                         )}
                       </div>
 

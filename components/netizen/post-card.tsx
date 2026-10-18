@@ -261,7 +261,7 @@ export function PostCard({
           aria-label={`Open ${post.userName || "user"} profile`}
         >
           <Avatar
-            src={post.userImage || "/shadow.png"}
+            src={post.userImage}
             alt={post.userName || "User"}
           />
         </button>
@@ -306,8 +306,7 @@ export function PostCard({
           <div className="mb-2 flex items-center gap-2">
             <Avatar
               src={
-                post.reshareData.originalUserImage ||
-                "/avatar-1.png"
+                post.reshareData.originalUserImage
               }
               alt={
                 post.reshareData.originalUserName ||
@@ -393,6 +392,8 @@ export function PostCard({
       <div className="px-3 py-2 sm:px-4">
         <PostActionBar
           highlighted={highlightedByUser}
+          liked={likedByUser}
+          onLike={() => onLike(post)}
           highlightCount={highlightCount}
           commentCount={Math.max(0, Number(post.comments ?? 0))}
           viewCount={openedCount}

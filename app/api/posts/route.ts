@@ -46,6 +46,9 @@ export async function GET(request: NextRequest) {
       if (Number.isFinite(n)) limit = Math.min(50, Math.max(1, Math.floor(n)))
     }
 
+    const session = await auth.api.getSession({ headers: request.headers })
+    const viewerId = session?.user?.id ? String(session.user.id) : null
+
     const client = await clientPromise
     const db = client.db(DB_NAME)
 
@@ -61,11 +64,23 @@ export async function GET(request: NextRequest) {
       .collection('posts')
       .find(filter)
       .sort({ createdAt: -1 })
-      .limit(limit + 1)
+      .limit(200)
       .toArray()
 
-    const hasMore = postsRaw.length > limit
-    const postsSlice = hasMore ? postsRaw.slice(0, limit) : postsRaw
+    const rankedPosts = postsRaw.sort((a, b) => {
+      const aHighlighted = viewerId && Array.isArray(a.highlightedBy) && a.highlightedBy.includes(viewerId) ? 1 : 0
+      const bHighlighted = viewerId && Array.isArray(b.highlightedBy) && b.highlightedBy.includes(viewerId) ? 1 : 0
+      if (aHighlighted !== bHighlighted) return bHighlighted - aHighlighted
+
+      const aHighlights = Array.isArray(a.highlightedBy) ? a.highlightedBy.length : 0
+      const bHighlights = Array.isArray(b.highlightedBy) ? b.highlightedBy.length : 0
+      if (aHighlights !== bHighlights) return bHighlights - aHighlights
+
+      return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
+    })
+
+    const hasMore = rankedPosts.length > limit
+    const postsSlice = hasMore ? rankedPosts.slice(0, limit) : rankedPosts
     const posts = postsSlice.map((p) => sanitizePostForFeed(p as unknown as Record<string, unknown>))
     const nextCursor = hasMore ? String((postsSlice[postsSlice.length - 1] as unknown as { createdAt: Date })?.createdAt?.toISOString?.() ?? null) : null
 

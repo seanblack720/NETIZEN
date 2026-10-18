@@ -21,8 +21,6 @@ type Props = {
 export function PostImageGrid({ images, onOpen, onImageClick, rounded = true }: Props) {
   const list = images.filter((s) => typeof s === "string" && s.trim().length > 0);
   const count = list.length;
-  if (count === 0) return null;
-
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const externalOpen = onImageClick ?? onOpen;
   const handle = (idx: number) => () => {

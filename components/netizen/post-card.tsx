@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Avatar } from "./app-shell";
 import { ShareModal } from "./share-modal";
 import { PostActionBar } from "./post-action-bar";
+import { PostImageGrid } from "./post-image-grid";
 import type { FeedPost } from "./feed";
 
 // reactions = { [userId]: emoji }
@@ -336,18 +337,11 @@ export function PostCard({
             {post.reshareData.originalContent || ""}
           </p>
 
-          {Array.isArray(
-            post.reshareData.originalImages
-          ) &&
-            post.reshareData.originalImages.length > 0 && (
-              <div className="mt-3 overflow-hidden rounded-lg">
-                <img
-                  src={post.reshareData.originalImages[0]}
-                  alt="Original post"
-                  className="max-h-[360px] w-full object-cover"
-                />
-              </div>
-            )}
+          {Array.isArray(post.reshareData.originalImages) && post.reshareData.originalImages.length > 0 && (
+            <div className="mt-3">
+              <PostImageGrid images={post.reshareData.originalImages} onImageClick={() => onSelectPost(post)} />
+            </div>
+          )}
         </div>
       ) : (
         post.content && (
@@ -363,76 +357,23 @@ export function PostCard({
         )
       )}
 
-      {/* Edge-to-edge post images on mobile */}
+      {/* Facebook-style media grid with an accessible lightbox */}
       {imageList.length > 0 && !post.reshareOf && (
-        <button
-          onClick={() => onSelectPost(post)}
-          className="mt-3 block w-full cursor-pointer overflow-hidden bg-[#f5f7f5] transition hover:opacity-95 sm:mx-4 sm:mb-1 sm:w-[calc(100%-2rem)] sm:rounded-xl sm:border sm:border-[#edf2ee]"
-          type="button"
-          aria-label="Open post images"
-        >
-          {imageList.length === 1 ? (
-            <img
-              src={imageList[0]}
-              alt="Post"
-              className="block h-auto max-h-[620px] min-h-[220px] w-full object-cover max-md:max-h-[520px]"
-            />
-          ) : (
-            <div className="grid h-[300px] grid-cols-[0.8fr_1.2fr] gap-1 bg-white sm:h-[360px] max-md:h-[320px]">
-              <div
-                className={`grid min-h-0 gap-1 ${
-                  imageList.length === 2
-                    ? "grid-rows-1"
-                    : "grid-rows-2"
-                }`}
-              >
-                {imageList.slice(1, 3).map(
-                  (image, index) => (
-                    <div
-                      key={`${postId}-image-${index + 1}`}
-                      className="relative min-h-0 overflow-hidden"
-                    >
-                      <img
-                        src={image}
-                        alt={`Post ${index + 2}`}
-                        className="h-full w-full object-cover"
-                      />
-
-                      {index === 1 &&
-                        imageList.length > 3 && (
-                          <span className="absolute inset-0 grid place-items-center bg-black/45 text-xl font-semibold text-white">
-                            +{imageList.length - 3}
-                          </span>
-                        )}
-                    </div>
-                  )
-                )}
-              </div>
-
-              <div className="relative min-h-0 overflow-hidden">
-                <img
-                  src={imageList[0]}
-                  alt="Post cover"
-                  className="h-full w-full object-cover"
-                />
-
-                <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2.5 py-1 text-xs font-semibold text-white">
-                  1 / {imageList.length}
-                </span>
-              </div>
-            </div>
-          )}
-        </button>
+        <div className="mt-3 sm:mx-4 sm:mb-1">
+          <PostImageGrid
+            images={imageList}
+            onImageClick={() => onSelectPost(post)}
+          />
+        </div>
       )}
 
       {/* Reaction and comment summary */}
       <div className="mx-3 mt-3 flex items-center justify-between gap-2 border-b border-[#edf2ee] pb-2.5 text-xs text-[#718078] sm:mx-4">
         <span className="flex items-center gap-1.5">
-          {hasReaction && (
-            <Heart
-              size={13}
-              className="fill-[#f43f68] text-[#f43f68]"
-            />
+          {topReaction ? (
+            <span className="text-sm leading-none" aria-hidden="true">{topReaction}</span>
+          ) : (
+            <Heart size={13} className="text-[#8a9a91]" />
           )}
           {reactionCountDisplay}{" "}
           {reactionCountDisplay === 1 ? "reaction" : "reactions"}

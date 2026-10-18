@@ -21,6 +21,8 @@ const trustedOrigins = [
   process.env.V0_DEV_APP_URL,
   process.env.V0_BUILD_URL,
   process.env.V0_SANDBOX_URL,
+  // v0 preview URLs are not always exposed through an environment variable.
+  "https://new-chat-ql9d1wr7.v0.build",
   originFromHost(process.env.VERCEL_URL),
   originFromHost(process.env.VERCEL_PROJECT_PRODUCTION_URL),
 ].filter(Boolean);

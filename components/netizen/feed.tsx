@@ -748,7 +748,7 @@ export function Feed({
   }
 
   return (
-    <div className="mx-auto w-full max-w-[880px] px-4">
+    <div className="mx-auto w-full max-w-[880px] px-2 sm:px-4">
       {error && (
         <div className="mb-4 rounded-2xl border border-[#f3d7d0] bg-[#fff4f1] px-3 py-2 text-sm text-[#7f362f] transition-all duration-300">
           {error}

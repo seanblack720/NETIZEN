@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, Star, MoreHorizontal } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Avatar } from "./app-shell";
@@ -369,13 +369,8 @@ export function PostCard({
       {/* Reaction and comment summary */}
       <div className="mx-3 mt-3 flex items-center justify-between gap-2 border-b border-[#edf2ee] pb-2.5 text-xs text-[#718078] sm:mx-4">
         <span className="flex items-center gap-1.5">
-          {topReaction ? (
-            <span className="text-sm leading-none" aria-hidden="true">{topReaction}</span>
-          ) : (
-            <Heart size={13} className="text-[#8a9a91]" />
-          )}
-          {reactionCountDisplay}{" "}
-          {reactionCountDisplay === 1 ? "reaction" : "reactions"}
+          {topReaction && <span className="text-sm leading-none" aria-hidden="true">{topReaction}</span>}
+          {reactionCountDisplay > 0 && <span>{reactionCountDisplay} {reactionCountDisplay === 1 ? "reaction" : "reactions"}</span>}
         </span>
 
         <button
@@ -383,8 +378,9 @@ export function PostCard({
           onClick={() => onSelectPost(post)}
           className="truncate text-right transition hover:text-[#168b45]"
         >
-          {Math.max(0, Number(post.comments ?? 0))} comments ·{" "}
-          {Math.max(0, Number(post.shares ?? 0))} shares
+          {Number(post.comments ?? 0) > 0 && `${Number(post.comments ?? 0)} comments`}
+          {Number(post.comments ?? 0) > 0 && Number(post.shares ?? 0) > 0 && " · "}
+          {Number(post.shares ?? 0) > 0 && `${Number(post.shares ?? 0)} shares`}
         </button>
       </div>
 
@@ -399,11 +395,12 @@ export function PostCard({
             setShowReactions((value) => !value)
           }
           onHighlight={handleHighlight}
+          onLongPressHighlight={() => setShowReactions(true)}
+          onTrack={() => onSelectPost(post)}
           onComment={() => {
             onComment(post);
             onToggleCommenting(postId);
           }}
-          onViews={() => onSelectPost(post)}
           onShare={() => setShareModalOpen(true)}
           showCounts={true}
         />

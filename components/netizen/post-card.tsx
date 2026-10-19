@@ -262,29 +262,12 @@ export function PostCard({
         </div>
       )}
 
-      {/* Post author */}
-      <div className="flex items-center gap-3 px-3 pb-1 pt-4 sm:px-4">
-        <button
-          type="button"
-          className="shrink-0 rounded-full"
-          onClick={() =>
-            onOpenProfile?.(
-              String(post.userId ?? ""),
-              post.userName ?? "",
-              post.userImage ?? ""
-            )
-          }
-          aria-label={`Open ${post.userName || "user"} profile`}
-        >
-          <Avatar
-            src={post.userImage}
-            alt={post.userName || "User"}
-          />
-        </button>
-
-        <div className="min-w-0 flex-1">
+      {/* Keep reshared posts focused on the reshare context and original post. */}
+      {!post.reshareOf && (
+        <div className="flex items-center gap-3 px-3 pb-1 pt-4 sm:px-4">
           <button
             type="button"
+            className="shrink-0 rounded-full"
             onClick={() =>
               onOpenProfile?.(
                 String(post.userId ?? ""),
@@ -292,20 +275,43 @@ export function PostCard({
                 post.userImage ?? ""
               )
             }
-            className="block max-w-full truncate text-left"
+            aria-label={`Open ${post.userName || "user"} profile`}
           >
-            <b className="block truncate text-[15px] font-semibold text-[#17251e] sm:text-base">
-              {post.userName || "Unknown user"}
-            </b>
+            <Avatar src={post.userImage} alt={post.userName || "User"} />
+          </button>
 
-            <span className="mt-0.5 block truncate text-[13px] text-[#647994] sm:text-sm">
-              @{(post.userName || "user")
-                .toLowerCase()
-                .replace(/\s+/g, ".")}{" "}
-              · {formatRelativeTime(post.createdAt)}
-            </span>
+          <div className="min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={() =>
+                onOpenProfile?.(
+                  String(post.userId ?? ""),
+                  post.userName ?? "",
+                  post.userImage ?? ""
+                )
+              }
+              className="block max-w-full truncate text-left"
+            >
+              <b className="block truncate text-[15px] font-semibold text-[#17251e] sm:text-base">
+                {post.userName || "Unknown user"}
+              </b>
+
+              <span className="mt-0.5 block truncate text-[13px] text-[#647994] sm:text-sm">
+                @{(post.userName || "user").toLowerCase().replace(/\s+/g, ".")} {" "}
+                · {formatRelativeTime(post.createdAt)}
+              </span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#647994] transition hover:bg-[#f0f8f3]"
+            aria-label="Post options"
+          >
+            <MoreHorizontal size={22} />
           </button>
         </div>
+      )}
 
         <button
           type="button"

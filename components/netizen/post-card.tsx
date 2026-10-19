@@ -316,6 +316,33 @@ export function PostCard({
       {/* Original post content nested inside a reshare */}
       {post.reshareOf && post.reshareData ? (
         <div className="mx-3 mb-2 mt-3 rounded-xl border border-[#e5ece7] bg-[#fafdfb] p-3 sm:mx-4 sm:p-4">
+          <button
+            type="button"
+            onClick={() =>
+              onOpenProfile?.(
+                String(post.reshareData?.originalUserId ?? ""),
+                post.reshareData?.originalUserName ?? "",
+                post.reshareData?.originalUserImage ?? null
+              )
+            }
+            className="mb-3 flex w-full items-center gap-2.5 text-left"
+            aria-label={`Open ${post.reshareData.originalUserName || "original author"} profile`}
+          >
+            <Avatar
+              src={post.reshareData.originalUserImage}
+              alt={post.reshareData.originalUserName || "Original author"}
+              size="sm"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[14px] font-semibold text-[#17251e]">
+                {post.reshareData.originalUserName || "Unknown user"}
+              </span>
+              <span className="block truncate text-[12px] text-[#647994]">
+                @{(post.reshareData.originalUserName || "user").toLowerCase().replace(/\s+/g, ".")} · original post
+              </span>
+            </span>
+          </button>
+
           <p className="whitespace-pre-wrap break-words text-[14px] leading-6 text-[#1d2c23]">
             {post.reshareData.originalContent || ""}
           </p>

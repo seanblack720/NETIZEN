@@ -849,9 +849,9 @@ export function Feed({
               </div>
 
               <div className="flex shrink-0 items-center pl-2">
-                <Avatar src="/avatar-1.png" alt="" className="h-7 w-7 rounded-full border-2 border-white object-cover" />
-                <Avatar src="/avatar-2.png" alt="" className="-ml-2 h-7 w-7 rounded-full border-2 border-white object-cover" />
-                <Avatar src="/avatar-3.png" alt="" className="-ml-2 h-7 w-7 rounded-full border-2 border-white object-cover" />
+                <Avatar src={null} alt="Member one" className="h-7 w-7 rounded-full border-2 border-white object-cover" />
+                <Avatar src={null} alt="Member two" className="-ml-2 h-7 w-7 rounded-full border-2 border-white object-cover" />
+                <Avatar src={null} alt="Member three" className="-ml-2 h-7 w-7 rounded-full border-2 border-white object-cover" />
                 <i className="-ml-2 grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-emerald-100 text-[11px] font-bold not-italic text-emerald-700">
                   {group.more}
                 </i>

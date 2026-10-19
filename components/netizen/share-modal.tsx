@@ -140,7 +140,7 @@ export function ShareModal({ post, isOpen, onClose, onReshare, sessionUserId }: 
         {/* Original post preview */}
         <div className="mb-4 flex items-center gap-3 rounded-xl bg-[#f7faf8] p-3">
           <Avatar
-            src={post.userImage || "/avatar-1.png"}
+            src={post.userImage}
             alt={post.userName || "User"}
             className="h-10 w-10 rounded-full"
           />

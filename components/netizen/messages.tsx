@@ -15,7 +15,7 @@ export function Messages() {
           {messageThreads.map((name, index) => (
             <button className={`flex w-full items-center gap-2.5 border-0 p-[14px] text-left ${index === 0 ? "bg-[#e7f7ed]" : "bg-transparent"}`} key={name}>
               <Avatar
-                src={index % 2 ? "/group-1.png" : "/avatar-1.png"}
+                src={null}
                 alt={name}
               />
               <span>
@@ -31,7 +31,7 @@ export function Messages() {
         </div>
         <div className="flex flex-col max-md:hidden">
           <div className="flex items-center gap-3 border-b border-[#dfe7e4] p-4">
-            <Avatar src="/avatar-1.png" alt="Lerato Khumalo" />
+            <Avatar src={null} alt="Lerato Khumalo" />
             <b>
               Lerato Khumalo<small className="mt-[3px] block text-[13px] font-normal text-[#5f7073]">Active now</small>
             </b>

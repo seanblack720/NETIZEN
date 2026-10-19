@@ -1,6 +1,6 @@
 "use client";
 
-import { Forward, Heart, MessageCircle, Plus, Star, Users } from "lucide-react";
+import { Forward, MessageCircle, Sparkles, Star, Users } from "lucide-react";
 
 type PostActionBarProps = {
   highlighted?: boolean;
@@ -9,8 +9,6 @@ type PostActionBarProps = {
   viewCount?: number;
   shareCount?: number;
   onAdd?: () => void;
-  onLike?: () => void;
-  liked?: boolean;
   onHighlight?: () => void;
   onComment?: () => void;
   onViews?: () => void;
@@ -54,8 +52,6 @@ export function PostActionBar({
   viewCount,
   shareCount,
   onAdd,
-  onLike,
-  liked = false,
   onHighlight,
   onComment,
   onViews,
@@ -66,20 +62,12 @@ export function PostActionBar({
     <div className="flex w-full items-center gap-0.5 rounded-full bg-[#e8f5ee] p-1.5">
       <button
         type="button"
-        onClick={onLike}
-        aria-label={liked ? "Unlike post" : "Like post"}
-        className={`flex h-10 min-w-10 shrink-0 items-center justify-center rounded-full px-2 transition active:scale-90 ${liked ? "bg-[#e35d72] text-white" : "bg-white text-[#1f6b4a]"}`}
-      >
-        <Heart className={liked ? "fill-current" : ""} />
-      </button>
-
-      <button
-        type="button"
         onClick={onAdd}
         aria-label="Choose reaction"
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#76b69a] text-white transition active:scale-90"
+        className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-[#1c9d57] px-4 text-white transition active:scale-95"
       >
-        <Plus strokeWidth={2.6} />
+        <Sparkles aria-hidden="true" />
+        <span className="text-sm font-semibold">React</span>
       </button>
 
       <ActionButton label={highlighted ? "Unhighlight" : "Highlight"} onClick={onHighlight} count={highlightCount} showCount={showCounts}>

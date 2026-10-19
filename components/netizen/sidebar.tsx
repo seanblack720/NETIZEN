@@ -215,7 +215,7 @@ export function Sidebar({
           onClick={handleProfileClick}
         >
           <Avatar
-            src={user.image || "/avatar-2.png"}
+            src={user.image}
             alt={user.name || user.email || "User"}
           />
 

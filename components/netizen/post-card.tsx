@@ -392,8 +392,6 @@ export function PostCard({
       <div className="px-3 py-2 sm:px-4">
         <PostActionBar
           highlighted={highlightedByUser}
-          liked={likedByUser}
-          onLike={() => onLike(post)}
           highlightCount={highlightCount}
           commentCount={Math.max(0, Number(post.comments ?? 0))}
           viewCount={openedCount}

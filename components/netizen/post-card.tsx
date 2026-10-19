@@ -316,35 +316,6 @@ export function PostCard({
       {/* Original post content nested inside a reshare */}
       {post.reshareOf && post.reshareData ? (
         <div className="mx-3 mb-2 mt-3 rounded-xl border border-[#e5ece7] bg-[#fafdfb] p-3 sm:mx-4 sm:p-4">
-          <div className="mb-2 flex items-center gap-2">
-            <Avatar
-              src={
-                post.reshareData.originalUserImage
-              }
-              alt={
-                post.reshareData.originalUserName ||
-                "User"
-              }
-              className="h-8 w-8 rounded-full"
-            />
-
-            <div className="min-w-0">
-              <b className="block truncate text-sm font-semibold text-[#15271d]">
-                {post.reshareData.originalUserName ||
-                  "Unknown user"}
-              </b>
-
-              <span className="block truncate text-xs text-[#64776b]">
-                @{(
-                  post.reshareData.originalUserName ||
-                  "user"
-                )
-                  .toLowerCase()
-                  .replace(/\s+/g, ".")}
-              </span>
-            </div>
-          </div>
-
           <p className="whitespace-pre-wrap break-words text-[14px] leading-6 text-[#1d2c23]">
             {post.reshareData.originalContent || ""}
           </p>

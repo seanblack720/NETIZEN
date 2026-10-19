@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Forward, MessageCircle, Sparkles } from "lucide-react";
+import { Eye, Forward, MessageCircle, Sparkles, Target } from "lucide-react";
 
 type PostActionBarProps = {
   highlighted?: boolean;
@@ -9,6 +9,8 @@ type PostActionBarProps = {
   shareCount?: number;
   onHighlight?: () => void;
   onLongPressHighlight?: () => void;
+  viewCount?: number;
+  onViews?: () => void;
   onTrack?: () => void;
   onComment?: () => void;
   onShare?: () => void;
@@ -24,7 +26,7 @@ function ActionButton({ label, onClick, count, children }: { label: string; onCl
   );
 }
 
-export function PostActionBar({ highlighted = false, highlightCount, commentCount, shareCount, onHighlight, onLongPressHighlight, onTrack, onComment, onShare, showCounts = false }: PostActionBarProps) {
+export function PostActionBar({ highlighted = false, highlightCount, commentCount, viewCount, shareCount, onHighlight, onLongPressHighlight, onViews, onTrack, onComment, onShare, showCounts = false }: PostActionBarProps) {
   let pressTimer: ReturnType<typeof setTimeout> | undefined;
   const startPress = () => { pressTimer = setTimeout(() => { onLongPressHighlight?.(); pressTimer = undefined; }, 480); };
   const endPress = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = undefined; } };
@@ -37,8 +39,9 @@ export function PostActionBar({ highlighted = false, highlightCount, commentCoun
         {showCounts && typeof highlightCount === "number" && highlightCount > 0 && <span className="text-xs tabular-nums">{highlightCount}</span>}
       </button>
 
-      <ActionButton label="Track notifications" onClick={onTrack}><Bell strokeWidth={2.2} /></ActionButton>
       <ActionButton label="Comments" onClick={onComment} count={showCounts ? commentCount : undefined}><MessageCircle strokeWidth={2.2} /></ActionButton>
+      <ActionButton label="Post views" onClick={onViews} count={showCounts ? viewCount : undefined}><Eye strokeWidth={2.2} /></ActionButton>
+      <ActionButton label="Track notifications" onClick={onTrack}><Target strokeWidth={2.2} /></ActionButton>
       <ActionButton label="Share" onClick={onShare} count={showCounts ? shareCount : undefined}><Forward strokeWidth={2.2} /></ActionButton>
     </div>
   );

@@ -233,16 +233,32 @@ export function PostCard({
             <path d="M21 13v2a4 4 0 01-4 4H3" />
           </svg>
 
-          <span>
+          <button
+            type="button"
+            onClick={() =>
+              onSelectPost({
+                ...post,
+                id: post.reshareData?.originalPostId || post.reshareOf || post.id,
+                _id: post.reshareData?.originalPostId || post.reshareOf || post._id,
+                userId: post.reshareData?.originalUserId || post.userId,
+                userName: post.reshareData?.originalUserName || post.userName,
+                userImage: post.reshareData?.originalUserImage || null,
+                content: post.reshareData?.originalContent || "",
+                images: post.reshareData?.originalImages || [],
+                reshareOf: null,
+                reshareData: null,
+              })
+            }
+            className="min-w-0 truncate text-left hover:underline"
+            aria-label="Open the original post"
+          >
+            <b className="text-[#168b45]">{post.userName || "Someone"}</b>{" "}
+            reshared a post from{" "}
             <b className="text-[#168b45]">
-              {post.userName}
-            </b>{" "}
-            reshared a post by{" "}
-            <b className="text-[#168b45]">
-              {post.reshareData.originalUserName ||
-                "Unknown user"}
+              {post.reshareData.originalUserName || "another user"}
             </b>
-          </span>
+            <span className="ml-1" aria-hidden="true">→</span>
+          </button>
         </div>
       )}
 
@@ -391,9 +407,7 @@ export function PostCard({
           highlightCount={highlightCount}
           commentCount={Math.max(0, Number(post.comments ?? 0))}
           viewCount={openedCount}
-          onAdd={() =>
-            setShowReactions((value) => !value)
-          }
+          onViews={() => onSelectPost(post)}
           onHighlight={handleHighlight}
           onLongPressHighlight={() => setShowReactions(true)}
           onTrack={() => onSelectPost(post)}

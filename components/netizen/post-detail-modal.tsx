@@ -1167,7 +1167,7 @@ export function PostDetailModal({
               highlightCount={highlightCount}
               commentCount={commentsList.length}
               viewCount={openedCount}
-              onAdd={() => setShowReactions((value) => !value)}
+              onTrack={() => {}}
               onHighlight={handleHighlight}
               onComment={scrollToDiscussion}
               onViews={() => {}}

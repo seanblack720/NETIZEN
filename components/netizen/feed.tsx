@@ -33,11 +33,11 @@ export type FeedPost = {
   reshareCount?: number;
   reshareData?: {
     originalPostId?: string;
+    originalUserId?: string | null;
     originalContent?: string;
     originalImages?: string[];
     originalUserName?: string | null;
     originalUserImage?: string | null;
-    originalUserId?: string | null;
   } | null;
   highlightCount?: number;
   highlightedByUser?: string[];

@@ -313,15 +313,6 @@ export function PostCard({
         </div>
       )}
 
-        <button
-          type="button"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#647994] transition hover:bg-[#f0f8f3]"
-          aria-label="Post options"
-        >
-          <MoreHorizontal size={22} />
-        </button>
-      </div>
-
       {/* Original post content nested inside a reshare */}
       {post.reshareOf && post.reshareData ? (
         <div className="mx-3 mb-2 mt-3 rounded-xl border border-[#e5ece7] bg-[#fafdfb] p-3 sm:mx-4 sm:p-4">

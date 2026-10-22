@@ -37,6 +37,7 @@ function RightRail() {
             <button className="rounded-[20px] border-0 bg-[#e7f7ed] px-[14px] py-[9px] font-bold text-[#087a3a]">
               Add
             </button>
+            
           </p>
         ))}
       </section>

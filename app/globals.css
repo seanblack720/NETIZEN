@@ -96,13 +96,19 @@ body {
 }
 .dark .text-\[\#162022\],
 .dark .text-\[\#15271d\],
-.dark .text-\[\#111827\] {
+.dark .text-\[\#111827\],
+.dark .text-\[\#17251e\] {
   color: var(--text-strong) !important;
 }
 .dark .text-\[\#5f7073\],
 .dark .text-\[\#68776f\],
 .dark .text-\[\#5b6b62\],
-.dark .text-\[\#273a2f\] {
+.dark .text-\[\#273a2f\],
+.dark .text-\[\#647994\],
+.dark .text-\[\#718078\],
+.dark .text-\[\#9aa79f\],
+.dark .text-\[\#64776b\],
+.dark .text-slate-500 {
   color: var(--muted) !important;
 }
 .dark .text-\[\#1d2c23\] {
@@ -118,4 +124,12 @@ body {
 .dark input,
 .dark textarea {
   color-scheme: dark;
+}
+/* Username visibility in dark: force strong contrast for names, handles still muted */
+.dark article b,
+.dark [class*=\"font-semibold\"][class*=\"text-\"] {
+  color: var(--text-strong) !important;
+}
+.dark .text-\[\#168b45\] {
+  color: #4ade80 !important;
 }

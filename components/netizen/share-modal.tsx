@@ -64,6 +64,7 @@ type ShareModalProps = {
 export function ShareModal({ post, isOpen, onClose, onReshare, sessionUserId }: ShareModalProps) {
   const [copied, setCopied] = useState(false);
   const [reshared, setReshared] = useState(false);
+  const [reshareText, setReshareText] = useState("");
 
   if (!isOpen) return null;
 
@@ -103,18 +104,28 @@ export function ShareModal({ post, isOpen, onClose, onReshare, sessionUserId }: 
 
   const handleReshare = async () => {
     if (!sessionUserId) return;
+    if (reshared) return;
     setReshared(true);
     try {
       const response = await fetch(`/api/posts/${post._id ?? post.id}`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "reshare" }),
+        body: JSON.stringify({ action: "reshare", reshareDescription: reshareText }),
       });
 
       if (response.ok) {
         const data = await response.json();
+        // Single source of truth: parent just prepends the new post, no second fetch
         onReshare?.(data.post);
+        // close modal after successful reshare
+        setTimeout(() => {
+          onClose();
+          setReshared(false);
+          setReshareText("");
+        }, 500);
+      } else {
+        setReshared(false);
       }
     } catch (err) {
       console.error("Reshare failed:", err);
@@ -140,7 +151,7 @@ export function ShareModal({ post, isOpen, onClose, onReshare, sessionUserId }: 
         {/* Original post preview */}
         <div className="mb-4 flex items-center gap-3 rounded-xl bg-[#f7faf8] p-3">
           <Avatar
-            src={post.userImage || "/avatar-1.png"}
+            src={post.userImage || null}
             alt={post.userName || "User"}
             className="h-10 w-10 rounded-full"
           />
@@ -208,6 +219,15 @@ export function ShareModal({ post, isOpen, onClose, onReshare, sessionUserId }: 
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#9aa79f]">
             Reshare to your feed
           </p>
+          <textarea
+            value={reshareText}
+            onChange={(e) => setReshareText(e.target.value)}
+            placeholder="Add your thoughts..."
+            maxLength={5000}
+            rows={3}
+            disabled={reshared}
+            className="mb-3 w-full resize-none rounded-xl border border-[#dfe9df] bg-white px-3 py-2.5 text-sm text-[#1d2c23] outline-none placeholder:text-[#87948b] focus:border-[#6fb08a] focus:ring-1 focus:ring-[#6fb08a]/30 disabled:opacity-60"
+          />
           <button
             type="button"
             onClick={handleReshare}

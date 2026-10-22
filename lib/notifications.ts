@@ -6,7 +6,8 @@ export type NotificationType =
   | "reply"
   | "mention"
   | "comment-reaction"
-  | "reply-reaction";
+  | "reply-reaction"
+  | "netizen-request";
 
 export type LegacyNotificationType =
   | "post-like"

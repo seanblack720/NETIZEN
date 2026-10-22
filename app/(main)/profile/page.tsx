@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, MessageCircle, MoreHorizontal, Send } from "lucide-react";
+import { Globe, Heart, MessageCircle, MoreHorizontal, Send, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -13,6 +13,10 @@ type User = {
   emailVerified?: boolean;
   createdAt?: string | Date;
   updatedAt?: string | Date;
+  bio?: string | null;
+  gender?: string | null;
+  country?: string | null;
+  location?: string | null;
 };
 
 type SessionData = {

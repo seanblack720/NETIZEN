@@ -1,11 +1,12 @@
 "use client";
 
-import { Heart, Star, MoreHorizontal } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Heart } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Avatar } from "./app-shell";
 import { ShareModal } from "./share-modal";
 import { PostActionBar } from "./post-action-bar";
+import { FollowButtons, PostMenu, VerifiedBadge, n } from "./post-extras";
 import type { FeedPost } from "./feed";
 
 // reactions = { [userId]: emoji }
@@ -23,6 +24,22 @@ const reactionOptions = [
 
 // A plain "like" (heart button) counts as this emoji when there is no specific reaction saved
 const DEFAULT_LIKE_EMOJI = reactionOptions[1].emoji;
+
+// Facebook-style image grid layouts, keyed by number of tiles shown (2-5)
+const imageGridClass: Record<number, string> = {
+  2: "grid-cols-2 grid-rows-1 h-[260px] sm:h-[340px]",
+  3: "grid-cols-2 grid-rows-[3fr_2fr] h-[360px] sm:h-[420px]",
+  4: "grid-cols-2 grid-rows-2 h-[340px] sm:h-[420px]",
+  5: "grid-cols-6 grid-rows-2 h-[340px] sm:h-[420px]",
+};
+
+// Column span per tile, by total number of tiles shown
+const imageTileSpan: Record<number, string[]> = {
+  2: ["", ""],
+  3: ["col-span-2", "", ""],
+  4: ["", "", "", ""],
+  5: ["col-span-3", "col-span-3", "col-span-2", "col-span-2", "col-span-2"],
+};
 
 function formatRelativeTime(value?: string | Date) {
   if (!value) return "Just now";
@@ -49,6 +66,34 @@ function formatRelativeTime(value?: string | Date) {
   return `${diffDays} day${diffDays === 1 ? "" : "s"}`;
 }
 
+function initialsOf(name?: string | null) {
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "??";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+/* Small round avatar used by the top comment preview */
+function MiniFace({ src, name }: { src?: string | null; name?: string | null }) {
+  const [errored, setErrored] = useState(false);
+  const ok = !!src && src.trim().length > 0 && !errored;
+
+  return (
+    <div className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full bg-[#e8efe8] text-[11px] font-semibold text-[#2f6b4f] dark:bg-[#24382f] dark:text-[#7ee0b0]">
+      {ok ? (
+        <img
+          src={String(src)}
+          alt={name || "User"}
+          className="h-full w-full object-cover"
+          onError={() => setErrored(true)}
+        />
+      ) : (
+        initialsOf(name)
+      )}
+    </div>
+  );
+}
+
 export function PostCard({
   post,
   postId,
@@ -70,6 +115,8 @@ export function PostCard({
   onToggleCommenting,
   postLikes,
   onHandleComment,
+  bookmarkedIds,
+  onBookmark,
 }: {
   post: FeedPost;
   postId: string;
@@ -88,27 +135,20 @@ export function PostCard({
   onShare: (post: FeedPost) => void;
   onReshare: (post: FeedPost) => void;
   onHighlight: (post: FeedPost) => void;
-  onCommentDraftChange: (
-    postId: string,
-    value: string
-  ) => void;
+  onCommentDraftChange: (postId: string, value: string) => void;
   commentDraft: string;
   commenting: boolean;
   onToggleCommenting: (postId: string) => void;
-  postLikes: Record<
-    string,
-    { likes: number; hasLiked: boolean }
-  >;
-  postHighlights: Record<
-    string,
-    { highlightCount: number; highlighted: boolean }
-  >;
+  postLikes: Record<string, { likes: number; hasLiked: boolean }>;
+  postHighlights: Record<string, { highlightCount: number; highlighted: boolean }>;
   onHandleComment: (post: FeedPost) => void;
+  bookmarkedIds?: Set<string>;
+  onBookmark?: (post: FeedPost) => void;
 }) {
   const [showReactions, setShowReactions] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const highlightState = postHighlights[postId];
-  const [highlighted, setHighlighted] = useState(highlightState?.highlighted ?? isHighlighted);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
   const savedReactions = (post as PostWithReactions).reactions;
   const [reactionMap, setReactionMap] = useState<Record<string, string>>(
@@ -122,15 +162,49 @@ export function PostCard({
     );
   }, [savedReactions]);
 
+  // Close emoji picker when tapping anywhere outside it (requirement)
+  useEffect(() => {
+    if (!showReactions) return;
+    const handleOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (pickerRef.current && target && !pickerRef.current.contains(target)) {
+        setShowReactions(false);
+      }
+    };
+    // slight delay to avoid immediate close from the long-press opening event
+    const t = setTimeout(() => {
+      document.addEventListener("mousedown", handleOutside);
+      document.addEventListener("touchstart", handleOutside as any, { passive: true } as any);
+      document.addEventListener("click", handleOutside as any);
+    }, 100);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("touchstart", handleOutside as any);
+      document.removeEventListener("click", handleOutside as any);
+    };
+  }, [showReactions]);
+
   const myReaction = sessionUserId ? reactionMap[sessionUserId] ?? null : null;
-  const reactionCountDisplay = Math.max(0, Object.keys(reactionMap).length);
+  const reactionCountDisplay = n(Object.keys(reactionMap).length);
   const hasReaction = Boolean(myReaction);
   // highlights: derived from highlightedBy array (keeps userIds for ranking) + optimistic highlightState
-  const highlightCount = Math.max(0, Math.floor(Number(highlightState?.highlightCount ?? post.highlightCount ?? (Array.isArray((post as any).highlightedBy) ? (post as any).highlightedBy.length : Array.isArray((post as any).likedBy) ? (post as any).likedBy.length : 0)) || 0));
+  const highlightCount = n(
+    highlightState?.highlightCount ??
+      post.highlightCount ??
+      (Array.isArray((post as any).highlightedBy)
+        ? (post as any).highlightedBy.length
+        : Array.isArray((post as any).likedBy)
+          ? (post as any).likedBy.length
+          : 0)
+  );
   const highlightedByUser = highlightState?.highlighted ?? isHighlighted;
-  const currentLikes = postLikes[postId]?.likes ?? post.likes ?? 0;
+  const isBookmarked = bookmarkedIds ? bookmarkedIds.has(postId) : false;
+  const currentLikes = n(postLikes[postId]?.likes ?? post.likes ?? 0);
   const likedByUser = postLikes[postId]?.hasLiked ?? isLiked;
-  const openedCount = Array.isArray(post.opened) ? post.opened.length : 0;
+  const openedCount = n(Array.isArray(post.opened) ? post.opened.length : 0);
+  const commentsCount = n(post.comments);
+  const sharesCount = n(post.shares);
 
   // Most used reaction on this post
   const topReaction = useMemo(() => {
@@ -158,22 +232,33 @@ export function PostCard({
     return best;
   }, [post.likedBy, reactionMap]);
 
-  const handleHighlight = async () => {
-    try {
-      const response = await fetch(`/api/posts/${postId}/highlight`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ highlighted: !highlightedByUser }),
-      });
-      const data = await response.json();
-      if (data?.highlighted !== undefined) {
-        setHighlighted(data.highlighted);
-        onHighlight(post);
+  // Most liked comment (earliest one wins a tie)
+  const topComment = useMemo(() => {
+    const list: any[] = Array.isArray((post as any).commentsList)
+      ? (post as any).commentsList
+      : [];
+    if (list.length === 0) return null;
+
+    const likesOf = (c: any) =>
+      n(c?.likes ?? (Array.isArray(c?.likedBy) ? c.likedBy.length : 0));
+
+    let best = list[0];
+    let bestLikes = likesOf(best);
+
+    for (const comment of list) {
+      const likes = likesOf(comment);
+      if (likes > bestLikes) {
+        best = comment;
+        bestLikes = likes;
       }
-    } catch (err) {
-      console.error("Highlight failed:", err);
     }
+
+    return { comment: best, likes: bestLikes };
+  }, [post]);
+
+  const handleHighlight = () => {
+    // Single source of truth – delegate to feed which does optimistic + DB PATCH
+    onHighlight(post);
   };
 
   const handleReactionSelect = async (emoji: string) => {
@@ -210,112 +295,118 @@ export function PostCard({
     }
   };
 
+  const openProfile = () =>
+    onOpenProfile?.(
+      String(post.userId ?? ""),
+      post.userName ?? "",
+      post.userImage ?? ""
+    );
+
+  // total of highlights + emoji reactions, shown as plain text (no emojis, no hearts)
+  const allReactions = highlightCount + reactionCountDisplay;
+  const hasBodyText = post.reshareOf
+    ? !!post.reshareData?.originalContent?.trim()
+    : !!post.content?.trim();
+
   return (
     // Mobile: break out to the full screen width no matter how much padding the parent has
-    <article className="overflow-hidden rounded-2xl border border-[#e5ece7] bg-white shadow-[0_1px_3px_rgba(18,45,30,0.04)] max-md:ml-[calc(50%_-_50vw)] max-md:w-screen max-md:max-w-none max-md:rounded-none max-md:border-x-0 max-md:shadow-none">
-
-      {/* Reshare indicator */}
-      {post.reshareOf && post.reshareData && (
-        <div className="mx-3 mt-3 flex items-center gap-2 rounded-lg bg-[#f0f8f3] px-3 py-2 text-xs text-[#64776b] sm:mx-4">
-          <svg
-            className="h-4 w-4 shrink-0 text-[#168b45]"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M17 1l4 4-4 4" />
-            <path d="M3 11V9a4 4 0 014-4h14" />
-            <path d="M7 23l-4-4 4-4" />
-            <path d="M21 13v2a4 4 0 01-4 4H3" />
-          </svg>
-
-          <span>
-            <b className="text-[#168b45]">
-              {post.userName}
-            </b>{" "}
-            reshared a post by{" "}
-            <b className="text-[#168b45]">
-              {post.reshareData.originalUserName ||
-                "Unknown user"}
-            </b>
-          </span>
-        </div>
-      )}
-
+    <article className="overflow-hidden rounded-2xl  bg-white shadow-[0_1px_3px_rgba(18,45,30,0.04)] max-md:ml-[calc(50%_-_50vw)] max-md:w-screen max-md:max-w-none max-md:rounded-none max-md:border-x-0 max-md:shadow-none">
       {/* Post author */}
       <div className="flex items-center gap-3 px-3 pb-1 pt-4 sm:px-4">
         <button
           type="button"
           className="shrink-0 rounded-full"
-          onClick={() =>
-            onOpenProfile?.(
-              String(post.userId ?? ""),
-              post.userName ?? "",
-              post.userImage ?? ""
-            )
-          }
+          onClick={openProfile}
           aria-label={`Open ${post.userName || "user"} profile`}
         >
           <Avatar
-            src={post.userImage || "/shadow.png"}
+            src={post.userImage || null}
             alt={post.userName || "User"}
           />
         </button>
 
         <div className="min-w-0 flex-1">
+          {/* Name + dummy Follow / Add netizen buttons */}
+          <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={openProfile}
+                className="min-w-0 truncate text-left"
+              >
+                <b className="block truncate text-[15px] font-semibold text-[#17251e] sm:text-base">
+                  {post.userName || "Unknown user"}
+                </b>
+              </button>
+              <VerifiedBadge />
+            </div>
+
+            <FollowButtons />
+          </div>
+
           <button
             type="button"
-            onClick={() =>
-              onOpenProfile?.(
-                String(post.userId ?? ""),
-                post.userName ?? "",
-                post.userImage ?? ""
-              )
-            }
-            className="block max-w-full truncate text-left"
+            onClick={openProfile}
+            className="mt-0.5 block max-w-full truncate text-left"
           >
-            <b className="block truncate text-[15px] font-semibold text-[#17251e] sm:text-base">
-              {post.userName || "Unknown user"}
-            </b>
-
-            <span className="mt-0.5 block truncate text-[13px] text-[#647994] sm:text-sm">
-              @{(post.userName || "user")
-                .toLowerCase()
-                .replace(/\s+/g, ".")}{" "}
-              · {formatRelativeTime(post.createdAt)}
+            <span className="block truncate text-[13px] text-[#647994] sm:text-sm">
+              {(post as any).userHandle ? (post as any).userHandle : "no handle"} · {formatRelativeTime(post.createdAt)}
             </span>
           </button>
         </div>
 
-        <button
-          type="button"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#647994] transition hover:bg-[#f0f8f3]"
-          aria-label="Post options"
-        >
-          <MoreHorizontal size={22} />
-        </button>
+        <PostMenu label="Post options" />
       </div>
 
-      {post.content && (
+      {/* Sharer description - above reshare indicator */}
+      {post.reshareOf && post.content?.trim() ? (
         <button
           onClick={() => onSelectPost(post)}
-          className="mt-2 block w-full cursor-pointer px-3 text-left transition hover:opacity-80 sm:px-4"
+          className="block w-full cursor-pointer px-3 pb-3 pt-3 text-left transition hover:opacity-80 sm:px-4"
           type="button"
         >
           <p className="whitespace-pre-wrap break-words text-[15px] leading-[1.55] text-[#1d2c23]">
             {post.content}
           </p>
         </button>
+      ) : null}
+
+      {/* Reshare indicator: opens ORIGINAL post */}
+      {post.reshareOf && post.reshareData && (
+        <button
+          type="button"
+          onClick={async (e) => {
+            e.stopPropagation();
+            const originalId = post.reshareData?.originalPostId || post.reshareOf;
+            try {
+              const res = await fetch('/api/posts/' + originalId, { cache: "no-store" });
+              const data = await res.json();
+              if (res.ok && data?.post) onSelectPost(data.post);
+              else onSelectPost({ _id: originalId, id: originalId, content: post.reshareData?.originalContent || "", images: post.reshareData?.originalImages || [], userId: post.reshareData?.originalUserId || "", userName: post.reshareData?.originalUserName || "Unknown user", userImage: post.reshareData?.originalUserImage || null, userHandle: (post.reshareData as any)?.originalUserHandle || null, createdAt: post.createdAt } as any);
+            } catch { onSelectPost({ _id: originalId, id: originalId, content: post.reshareData?.originalContent || "", images: post.reshareData?.originalImages || [], userId: post.reshareData?.originalUserId || "", userName: post.reshareData?.originalUserName || "Unknown user", userImage: post.reshareData?.originalUserImage || null, userHandle: (post.reshareData as any)?.originalUserHandle || null, createdAt: post.createdAt } as any); }
+          }}
+          className={`${post.content?.trim() ? "mt-0" : "mt-3"} flex w-full items-center gap-2 border-y border-[#e3ebe6] px-3 py-2.5 text-left text-xs text-[#64776b] transition hover:bg-[#f7faf8] dark:border-[#1e3a2f] dark:text-[#9bb0a8] dark:hover:bg-[#17291f] sm:px-4`}
+        >
+          <svg className="h-4 w-4 shrink-0 text-[#168b45] dark:text-[#7ee0b0]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 014-4h14" /><path d="M7 23l-4-4 4-4" /><path d="M21 13v2a4 4 0 01-4 4H3" /></svg>
+          <span className="min-w-0 flex-1 truncate"><b className="font-semibold text-[#168b45] dark:text-[#7ee0b0]">{post.userName}</b>{" "}reshared a post by{" "}<b className="font-semibold text-[#168b45] dark:text-[#7ee0b0]">{post.reshareData.originalUserName || "Unknown user"}</b></span>
+          <svg className="h-3.5 w-3.5 shrink-0 text-[#9aa79f]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
       )}
 
-      {/* Edge-to-edge post images on mobile */}
+      {/* Original content - below indicator, or own content if not reshare */}
+      {post.reshareOf ? (
+        post.reshareData?.originalContent?.trim() ? (
+          <button onClick={async () => { const originalId = post.reshareData?.originalPostId || post.reshareOf; if (originalId) { try { const res = await fetch("/api/posts/" + originalId, { cache: "no-store" }); const data = await res.json(); if (res.ok && data?.post) onSelectPost(data.post); else onSelectPost(post); } catch { onSelectPost(post); } } else onSelectPost(post); }} className="block w-full cursor-pointer px-3 pb-3 pt-3 text-left transition hover:opacity-80 sm:px-4" type="button"><p className="whitespace-pre-wrap break-words text-[15px] leading-[1.55] text-[#1d2c23]">{post.reshareData.originalContent}</p></button>
+        ) : null
+      ) : post.content?.trim() ? (
+        <button onClick={() => onSelectPost(post)} className="block w-full cursor-pointer px-3 pb-3 pt-3 text-left transition hover:opacity-80 sm:px-4" type="button"><p className="whitespace-pre-wrap break-words text-[15px] leading-[1.55] text-[#1d2c23]">{post.content}</p></button>
+      ) : null}
+
+      {/* Facebook-style image grid */}
       {imageList.length > 0 && (
         <button
           onClick={() => onSelectPost(post)}
-          className="mt-3 block w-full cursor-pointer overflow-hidden bg-[#f5f7f5] transition hover:opacity-95 sm:mx-4 sm:mb-1 sm:w-[calc(100%-2rem)] sm:rounded-xl sm:border sm:border-[#edf2ee]"
+          className={`${hasBodyText ? "mt-0" : "mt-3"} block w-full cursor-pointer overflow-hidden rounded-none border-0 bg-[#f5f7f5] transition hover:opacity-95`}
           type="button"
           aria-label="Open post images"
         >
@@ -323,90 +414,74 @@ export function PostCard({
             <img
               src={imageList[0]}
               alt="Post"
-              className="block h-auto max-h-[620px] min-h-[220px] w-full object-cover max-md:max-h-[520px]"
+              className="block h-auto max-h-[620px] min-h-[220px] w-full rounded-none object-cover max-md:max-h-[520px]"
             />
           ) : (
-            <div className="grid h-[300px] grid-cols-[0.8fr_1.2fr] gap-1 bg-white sm:h-[360px] max-md:h-[320px]">
-              <div
-                className={`grid min-h-0 gap-1 ${
-                  imageList.length === 2
-                    ? "grid-rows-1"
-                    : "grid-rows-2"
-                }`}
-              >
-                {imageList.slice(1, 3).map(
-                  (image, index) => (
+            (() => {
+              const shown = imageList.slice(0, 5);
+              const extra = imageList.length - 5;
+
+              return (
+                <div
+                  className={`grid gap-[2px] bg-white ${imageGridClass[shown.length]}`}
+                >
+                  {shown.map((image, index) => (
                     <div
-                      key={`${postId}-image-${index + 1}`}
-                      className="relative min-h-0 overflow-hidden"
+                      key={`${postId}-image-${index}`}
+                      className={`relative min-h-0 overflow-hidden ${imageTileSpan[shown.length][index]}`}
                     >
                       <img
                         src={image}
-                        alt={`Post ${index + 2}`}
+                        alt={`Post ${index + 1}`}
                         className="h-full w-full object-cover"
                       />
 
-                      {index === 1 &&
-                        imageList.length > 3 && (
-                          <span className="absolute inset-0 grid place-items-center bg-black/45 text-xl font-semibold text-white">
-                            +{imageList.length - 3}
-                          </span>
-                        )}
+                      {index === 4 && extra > 0 && (
+                        <span className="absolute inset-0 grid place-items-center bg-black/50 text-2xl font-semibold text-white">
+                          +{extra}
+                        </span>
+                      )}
                     </div>
-                  )
-                )}
-              </div>
-
-              <div className="relative min-h-0 overflow-hidden">
-                <img
-                  src={imageList[0]}
-                  alt="Post cover"
-                  className="h-full w-full object-cover"
-                />
-
-                <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2.5 py-1 text-xs font-semibold text-white">
-                  1 / {imageList.length}
-                </span>
-              </div>
-            </div>
+                  ))}
+                </div>
+              );
+            })()
           )}
         </button>
       )}
 
-      {/* Reaction and comment summary */}
-      <div className="mx-3 mt-3 flex items-center justify-between gap-2 border-b border-[#edf2ee] pb-2.5 text-xs text-[#718078] sm:mx-4">
-        <span className="flex items-center gap-1.5">
-          {hasReaction && (
-            <Heart
-              size={13}
-              className="fill-[#f43f68] text-[#f43f68]"
-            />
-          )}
-          {reactionCountDisplay}{" "}
-          {reactionCountDisplay === 1 ? "reaction" : "reactions"}
+      {/* All reactions = highlights + emoji reactions, plain text only */}
+      <div className="mx-3 mt-3 flex items-center justify-between gap-2 border-b border-[#edf2ee] pb-2.5 text-xs text-[#718078] dark:border-[#1e3a2f] dark:text-[#9bb0a8] sm:mx-4">
+        <span>
+          {allReactions > 0 ? `All reactions · ${allReactions}` : "No reactions yet"}
         </span>
 
-        <button
-          type="button"
-          onClick={() => onSelectPost(post)}
-          className="truncate text-right transition hover:text-[#168b45]"
-        >
-          {Math.max(0, Number(post.comments ?? 0))} comments ·{" "}
-          {Math.max(0, Number(post.shares ?? 0))} shares
-        </button>
+        {(commentsCount > 0 || sharesCount > 0) && (
+          <button
+            type="button"
+            onClick={() => onSelectPost(post)}
+            className="truncate text-right transition hover:text-[#168b45]"
+          >
+            {commentsCount > 0 &&
+              `${commentsCount} ${commentsCount === 1 ? "comment" : "comments"}`}
+            {commentsCount > 0 && sharesCount > 0 && " · "}
+            {sharesCount > 0 &&
+              `${sharesCount} ${sharesCount === 1 ? "share" : "shares"}`}
+          </button>
+        )}
       </div>
 
       {/* Compact action bar */}
-      <div className="px-3 py-2 sm:px-4">
+      <div className="relative px-3 py-2 sm:px-4">
         <PostActionBar
           highlighted={highlightedByUser}
           highlightCount={highlightCount}
-          commentCount={Math.max(0, Number(post.comments ?? 0))}
+          commentCount={commentsCount}
           viewCount={openedCount}
-          onAdd={() =>
-            setShowReactions((value) => !value)
-          }
+          bookmarked={isBookmarked}
           onHighlight={handleHighlight}
+          onHighlightLongPress={() => setShowReactions(true)}
+          onBookmark={() => onBookmark?.(post)}
           onComment={() => {
             onComment(post);
             onToggleCommenting(postId);
@@ -415,29 +490,42 @@ export function PostCard({
           onShare={() => setShareModalOpen(true)}
           showCounts={true}
         />
-      </div>
-
-      {/* Reaction picker */}
-      {showReactions && (
-        <div className="mx-3 mb-2 flex max-w-full flex-wrap items-center gap-1.5 rounded-2xl border border-[#dcebe1] bg-white p-2 shadow-[0_6px_20px_rgba(15,39,28,0.10)] sm:mx-4">
-          {reactionOptions.map((option) => (
+        {/* Reaction picker – anchored above Highlight, closes on outside tap */}
+        {showReactions && (
+          <>
+            {/* Full-screen transparent catcher – any tap outside emojis closes picker */}
             <button
-              key={option.label}
               type="button"
-              onClick={() =>
-                handleReactionSelect(option.emoji)
-              }
-              className={`flex h-9 w-9 items-center justify-center rounded-full text-lg transition hover:scale-110 hover:bg-[#eef8f1] ${
-                myReaction === option.emoji ? "bg-[#e3f4e9]" : ""
-              }`}
-              aria-label={option.label}
-              title={option.label}
+              aria-label="Close reactions"
+              onClick={() => setShowReactions(false)}
+              className="fixed inset-0 z-10 cursor-default bg-transparent"
+              tabIndex={-1}
+            />
+            <div
+              ref={pickerRef}
+              className="absolute bottom-[60px] left-3 z-20 flex max-w-[calc(100%-24px)] flex-wrap items-center gap-1.5 rounded-2xl border border-[#dcebe1] bg-white p-2 shadow-[0_8px_28px_rgba(15,39,28,0.16)] dark:border-[#1e3a2f] dark:bg-[#18231f] sm:left-4"
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
             >
-              {option.emoji}
-            </button>
-          ))}
-        </div>
-      )}
+              {reactionOptions.map((option) => (
+                <button
+                  key={option.label}
+                  type="button"
+                  onClick={() => handleReactionSelect(option.emoji)}
+                  className={`flex h-10 w-10 items-center justify-center rounded-full text-[22px] leading-none transition hover:scale-110 hover:bg-[#eef8f1] active:scale-95 dark:hover:bg-[#1f332b] ${
+                    myReaction === option.emoji ? "bg-[#e3f4e9] ring-1 ring-[#b9d9c6] dark:bg-[#143a26] dark:ring-[#1e3a2f]" : ""
+                  }`}
+                  aria-label={option.label}
+                  title={option.label}
+                >
+                  {option.emoji}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
 
       {/* Share modal */}
       <ShareModal
@@ -450,7 +538,7 @@ export function PostCard({
 
       {/* Top reaction + discussion link */}
       <div className="flex items-center justify-between gap-3 px-3 pb-3 pt-1 sm:px-4">
-        <span className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-xs text-[#718078]">
+        <span className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-xs text-[#718078] dark:text-[#9bb0a8]">
           {topReaction && (
             <>
               <span className="text-base leading-none">{topReaction}</span>
@@ -464,12 +552,53 @@ export function PostCard({
 
         <button
           onClick={() => onSelectPost(post)}
-          className="shrink-0 text-xs font-semibold text-[#168b45] transition hover:text-[#0c6831]"
+          className="shrink-0 text-xs font-semibold text-[#168b45] transition hover:text-[#0c6831] dark:text-[#7ee0b0]"
           type="button"
         >
           Open discussion
         </button>
       </div>
+
+      {/* Most liked comment, at the bottom of the post */}
+      {topComment && (
+        <div className="px-3 pb-3 sm:px-4">
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#718078] dark:text-[#9bb0a8]">
+            Top comment
+          </p>
+
+          <button
+            type="button"
+            onClick={() => onSelectPost(post)}
+            className="flex w-full items-start gap-2 text-left"
+          >
+            <MiniFace
+              src={topComment.comment?.userImage}
+              name={topComment.comment?.userName}
+            />
+
+            <span className="relative min-w-0 max-w-full">
+              <span className="block rounded-2xl bg-[#f0f2f1] px-3 py-2 dark:bg-[#24382f]">
+                <span className="flex items-center gap-1 text-[13px] font-semibold text-[#15271d] dark:text-[#e6ece9]">
+                  <span className="truncate">
+                    {topComment.comment?.userName || "Unknown user"}
+                  </span>
+                  <VerifiedBadge size={13} />
+                </span>
+                <span className="line-clamp-2 break-words text-[14px] leading-5 text-[#15271d] dark:text-[#e6ece9]">
+                  {topComment.comment?.content}
+                </span>
+              </span>
+
+              {topComment.likes > 0 && (
+                <span className="absolute -bottom-2.5 right-2 flex items-center gap-1 rounded-full border border-[#e3ebe6] bg-white px-1.5 py-0.5 text-[11px] text-[#718078] shadow-sm dark:border-[#1e3a2f] dark:bg-[#101a17] dark:text-[#9bb0a8]">
+                  <Heart size={11} className="fill-[#f43f68] text-[#f43f68]" />
+                  {topComment.likes}
+                </span>
+              )}
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* Comment composer */}
       {commenting && (

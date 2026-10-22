@@ -1,17 +1,33 @@
 "use client";
 import Link from "next/link";
-import { Plus } from "lucide-react";
-import React, { useEffect, useState } from "react";
-import { groups } from "@/lib/netizen-data";
-import { Avatar } from "./app-shell";
+import { ImagePlus, Loader2, Plus, RefreshCw } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { groups as communityGroups } from "@/lib/netizen-data";
 import { PostDetailModal } from "./post-detail-modal";
 import { PostCard } from "./post-card";
 import { createClientNotification } from "@/lib/notifications-client";
+import {
+  StoryRail,
+  StoryViewer,
+  groupStatuses,
+  type StatusItem,
+} from "./status-stories";
 
 function clamp(n: any) {
   const v = Number(n);
   return Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0;
 }
+
+/* Theme tokens (same palette as the profile and post pages) */
+const ui = {
+  card: "bg-white dark:bg-[#101a17]",
+  text: "text-[#15271d] dark:text-[#e6ece9]",
+  muted: "text-[#718078] dark:text-[#9bb0a8]",
+  border: "border-[#e3ebe6] dark:border-[#1e3a2f]",
+  bubble: "bg-[#f0f2f1] dark:bg-[#24382f]",
+  hover: "hover:bg-[#f2f6f3] dark:hover:bg-[#1f332b]",
+  accent: "text-[#168b45] dark:text-[#7ee0b0]",
+};
 
 export type FeedPost = {
   id?: string;
@@ -21,6 +37,7 @@ export type FeedPost = {
   userId?: string;
   userName?: string | null;
   userImage?: string | null;
+  userHandle?: string | null;
   likes?: number;
   comments?: number;
   shares?: number;
@@ -38,6 +55,7 @@ export type FeedPost = {
     originalUserName?: string | null;
     originalUserImage?: string | null;
     originalUserId?: string | null;
+    originalUserHandle?: string | null;
   } | null;
   highlightCount?: number;
   highlightedByUser?: string[];
@@ -47,24 +65,378 @@ export type FeedPost = {
 export function Section({
   title,
   action,
+  onAction,
   children,
   className,
 }: {
   title: string;
-  action?: string;
+  action?: React.ReactNode;
+  onAction?: () => void;
   children: React.ReactNode;
   className?: string;
 }) {
   return (
     <section className={className ?? ""}>
-      <div className="mb-3 flex items-center justify-between px-4">
-        <h2 className="m-0 text-sm tracking-wide text-slate-500">{title}</h2>
+      <div className="mb-2.5 flex items-center justify-between px-4 sm:px-1">
+        <h2 className={`m-0 text-[13px] font-bold uppercase tracking-[0.08em] ${ui.muted}`}>{title}</h2>
         {action && (
-          <button className="border-0 bg-transparent text-sm font-bold text-emerald-700">{action}</button>
+          <button
+            type="button"
+            onClick={onAction}
+            className={`border-0 bg-transparent text-sm font-semibold ${ui.accent}`}
+          >
+            {action}
+          </button>
         )}
       </div>
       {children}
     </section>
+  );
+}
+
+/* Shrinks a picked photo so status uploads stay small and fast */
+function shrinkImage(file: File, max = 1280): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Could not read the file"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("That file is not a valid image"));
+      img.onload = () => {
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("Could not process the image"));
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* =========================================================
+   PULL TO REFRESH
+   Pull down from the top of the feed, release past the line to reload
+========================================================== */
+function findScroller(el: HTMLElement | null): HTMLElement | null {
+  let node = el?.parentElement ?? null;
+  let fallback: HTMLElement | null = null;
+  while (node && node !== document.body && node !== document.documentElement) {
+    const oy = getComputedStyle(node).overflowY;
+    if (oy === "auto" || oy === "scroll" || oy === "overlay") {
+      if (node.scrollHeight > node.clientHeight + 1) return node;
+      if (!fallback) fallback = node;
+    }
+    node = node.parentElement;
+  }
+  return fallback;
+}
+
+function PullToRefresh({
+  onRefresh,
+  children,
+}: {
+  onRefresh: () => Promise<void>;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pull, setPull] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const pullRef = useRef(0);
+  const refreshingRef = useRef(false);
+  const onRefreshRef = useRef(onRefresh);
+  onRefreshRef.current = onRefresh;
+
+  const THRESHOLD = 64;
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    let startY = 0;
+    let tracking = false;
+    let wheelAcc = 0;
+    let wheelTimer: ReturnType<typeof setTimeout> | undefined;
+    let lastScrollAt = 0;
+
+    // find the element that really scrolls, and hide its scrollbar
+    const scroller = () => {
+      const sc = findScroller(el);
+      sc?.setAttribute("data-feed-scroller", "");
+      return sc;
+    };
+    scroller();
+
+    const atTop = () => {
+      const sc = scroller();
+      return (sc ? sc.scrollTop : 0) <= 0 && window.scrollY <= 0;
+    };
+
+    // ignore gestures inside popups / full screen viewers
+    const blocked = (target: EventTarget | null) =>
+      refreshingRef.current ||
+      document.body.style.overflow === "hidden" ||
+      (target instanceof Element && !!target.closest(".fixed, [role='dialog']"));
+
+    const setP = (v: number) => {
+      pullRef.current = v;
+      setPull(v);
+    };
+
+    const run = async () => {
+      if (refreshingRef.current) return;
+      refreshingRef.current = true;
+      setRefreshing(true);
+      setP(54);
+      try {
+        await onRefreshRef.current();
+      } finally {
+        refreshingRef.current = false;
+        setRefreshing(false);
+        setP(0);
+      }
+    };
+
+    /* ----- touch: pull down from the top ----- */
+    const onStart = (e: TouchEvent) => {
+      if (blocked(e.target) || !atTop()) return;
+      startY = e.touches[0].clientY;
+      tracking = true;
+    };
+
+    const onMove = (e: TouchEvent) => {
+      if (!tracking) return;
+      const dy = e.touches[0].clientY - startY;
+
+      if (dy <= 0) {
+        if (pullRef.current > 0) setP(0);
+        return;
+      }
+      if (!atTop()) {
+        tracking = false;
+        setP(0);
+        setDragging(false);
+        return;
+      }
+
+      setDragging(true);
+      if (e.cancelable) e.preventDefault();
+      setP(Math.min(96, dy * 0.5));
+    };
+
+    const onEnd = () => {
+      if (!tracking) return;
+      tracking = false;
+      setDragging(false);
+
+      if (pullRef.current >= THRESHOLD) run();
+      else setP(0);
+    };
+
+    /* ----- wheel / trackpad: keep scrolling up at the very top ----- */
+    const onScrollAny = () => {
+      lastScrollAt = Date.now();
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      if (blocked(e.target)) return;
+
+      if (e.deltaY >= 0) {
+        wheelAcc = 0;
+        if (pullRef.current > 0 && !refreshingRef.current) setP(0);
+        return;
+      }
+
+      // ignore the tail of a normal scroll that just reached the top
+      if (Date.now() - lastScrollAt < 350 || !atTop()) return;
+
+      wheelAcc += -e.deltaY;
+      setP(Math.min(96, wheelAcc * 0.3));
+
+      if (wheelTimer) clearTimeout(wheelTimer);
+      wheelTimer = setTimeout(() => {
+        if (pullRef.current >= THRESHOLD) run();
+        else if (!refreshingRef.current) setP(0);
+        wheelAcc = 0;
+      }, 160);
+    };
+
+    window.addEventListener("touchstart", onStart, { passive: true });
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onEnd);
+    window.addEventListener("touchcancel", onEnd);
+    window.addEventListener("wheel", onWheel, { passive: true });
+    window.addEventListener("scroll", onScrollAny, true);
+
+    return () => {
+      window.removeEventListener("touchstart", onStart);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onEnd);
+      window.removeEventListener("touchcancel", onEnd);
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("scroll", onScrollAny, true);
+      if (wheelTimer) clearTimeout(wheelTimer);
+      findScroller(el)?.removeAttribute("data-feed-scroller");
+    };
+  }, []);
+
+  const progress = Math.min(1, pull / THRESHOLD);
+
+  return (
+    <div ref={ref}>
+      {/* green strip that opens under the header, with the spinner in it */}
+      <div
+        className="flex items-end justify-center overflow-hidden bg-[#15803d] dark:bg-[#052e1a]"
+        style={{
+          height: pull,
+          transition: dragging ? "none" : "height .25s ease",
+        }}
+        aria-hidden={pull === 0}
+      >
+        <div
+          className="mb-2 grid h-10 w-10 place-items-center rounded-full bg-white text-[#15803d] shadow-lg"
+          style={{ opacity: Math.max(0.25, progress), transform: `scale(${0.6 + progress * 0.4})` }}
+        >
+          <RefreshCw
+            size={20}
+            strokeWidth={2.5}
+            className={refreshing ? "animate-spin" : ""}
+            style={refreshing ? undefined : { transform: `rotate(${progress * 300}deg)` }}
+          />
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/* =========================================================
+   GROUPS CAROUSEL
+   Wide cards, neighbours peek in from the sides, dots below
+========================================================== */
+function GroupCarousel({
+  items,
+  onOpen,
+}: {
+  items: any[];
+  onOpen: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Open with the 2nd group centred and the 1st already scrolled off to the left
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || items.length < 2) return;
+
+    const frame = requestAnimationFrame(() => {
+      const card = el.children[1] as HTMLElement | undefined;
+      if (!card) return;
+      el.scrollTo({
+        left: card.offsetLeft + card.offsetWidth / 2 - el.clientWidth / 2,
+        behavior: "auto",
+      });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [items.length]);
+
+  return (
+    <div
+      ref={ref}
+      className="relative -mb-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-[7%] pb-6 pt-1 [scrollbar-width:none] sm:px-0 sm:snap-proximity [&::-webkit-scrollbar]:hidden"
+    >
+      {items.map((group) => (
+        <article
+          key={group.name}
+          className="relative h-[121px] w-[86%] shrink-0 snap-center overflow-hidden rounded-[22px] border border-[#86efac] bg-[linear-gradient(135deg,#f0fdf4_0%,#dcfce7_55%,#bbf7d0_100%)] shadow-[0_12px_24px_-14px_rgba(21,128,61,0.45)] sm:w-[420px] dark:border-[#14532d]/60 dark:bg-[linear-gradient(135deg,#04200f_0%,#07391d_55%,#0b5a2d_100%)] dark:shadow-[0_12px_24px_-14px_rgba(5,46,26,0.8)]"
+        >
+          {/* picture on the right, fading into the card early so text stays readable */}
+          {group.image && (
+            <img
+              src={group.image}
+              alt=""
+              loading="lazy"
+              className="absolute inset-y-0 right-0 h-full w-[52%] object-cover"
+              style={{
+                WebkitMaskImage:
+                  "linear-gradient(to right, transparent 0%, #000 75%)",
+                maskImage: "linear-gradient(to right, transparent 0%, #000 75%)",
+              }}
+            />
+          )}
+
+          {/* member badge */}
+          <span className="absolute right-3 top-2.5 grid h-8 min-w-8 place-items-center rounded-full bg-[#16a34a] px-1.5 text-[11px] font-extrabold leading-none text-white shadow-lg dark:bg-[#4ade80] dark:text-[#04200f]">
+            {group.more}
+          </span>
+
+          <div className="relative flex h-full max-w-[64%] flex-col justify-center gap-0.5 px-4 py-2.5">
+            <span className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-[#15803d] dark:text-[#86efac]/85">
+              Community · {group.members}
+            </span>
+            <h3 className="line-clamp-2 text-[18px] font-bold leading-[1.15] text-[#14532d] dark:text-white">
+              {group.name}
+            </h3>
+            <button
+              type="button"
+              onClick={onOpen}
+              className="mt-1 w-fit rounded-full bg-[#16a34a] px-4 py-1 text-[13px] font-bold text-white shadow-[0_6px_16px_-6px_rgba(22,163,74,0.7)] transition active:scale-95 dark:bg-[#4ade80] dark:text-[#04200f] dark:shadow-[0_6px_16px_-6px_rgba(74,222,128,0.8)]"
+            >
+              View group
+            </button>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+/* Global bits that only exist while the feed is on screen:
+   shimmer animation, hidden scrollbars (browser bounce stays on) */
+const FEED_CSS = `
+@keyframes feedShimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+.feed-shimmer{background-image:linear-gradient(90deg,rgba(120,150,135,.14) 25%,rgba(120,150,135,.30) 50%,rgba(120,150,135,.14) 75%);background-size:200% 100%;animation:feedShimmer 1.5s linear infinite}
+.feed-shimmer-light{background-image:linear-gradient(90deg,rgba(255,255,255,.14) 25%,rgba(255,255,255,.34) 50%,rgba(255,255,255,.14) 75%);background-size:200% 100%;animation:feedShimmer 1.5s linear infinite}
+html,body,[data-feed-scroller]{scrollbar-width:none;-ms-overflow-style:none;overscroll-behavior-y:auto}
+html::-webkit-scrollbar,body::-webkit-scrollbar,[data-feed-scroller]::-webkit-scrollbar{display:none;width:0;height:0}
+`;
+
+function FeedSkeleton() {
+  return (
+    <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading posts">
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          className={`overflow-hidden border-y sm:rounded-2xl sm:border ${ui.border} ${ui.card}`}
+        >
+          <div className="flex items-center gap-3 p-4">
+            <div className="feed-shimmer h-11 w-11 rounded-full" />
+            <div className="flex-1 space-y-2">
+              <div className="feed-shimmer h-3 w-1/3 rounded-full" />
+              <div className="feed-shimmer h-2.5 w-1/4 rounded-full" />
+            </div>
+            <div className="feed-shimmer h-8 w-16 rounded-full" />
+          </div>
+          <div className="space-y-2 px-4 pb-4">
+            <div className="feed-shimmer h-3 w-full rounded-full" />
+            <div className="feed-shimmer h-3 w-4/5 rounded-full" />
+          </div>
+          {i === 0 && <div className="feed-shimmer h-56 w-full" />}
+          <div className="flex gap-3 p-4">
+            <div className="feed-shimmer h-8 w-20 rounded-full" />
+            <div className="feed-shimmer h-8 w-20 rounded-full" />
+            <div className="feed-shimmer ml-auto h-8 w-10 rounded-full" />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -94,19 +466,9 @@ function formatRelativeTime(value?: string | Date) {
   return `${diffDays} day${diffDays === 1 ? "" : "s"}`;
 }
 
-type StatusItem = {
-  id?: string;
-  _id?: string;
-  image?: string;
-  title?: string;
-  tag?: string;
-  userName?: string;
-};
-
 export function Feed({
   refreshKey,
   onNavigate,
-  onCreate,
   onOpenProfile,
   incomingPost,
 }: {
@@ -124,92 +486,119 @@ export function Feed({
   const [statusTag, setStatusTag] = useState("Update");
   const [statusSaving, setStatusSaving] = useState(false);
   const [statusError, setStatusError] = useState("");
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [viewedGroups, setViewedGroups] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [statusesLoaded, setStatusesLoaded] = useState(false);
   const [error, setError] = useState("");
+  const [postsError, setPostsError] = useState("");
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+  const [sessionUser, setSessionUser] = useState<{ name?: string | null; image?: string | null } | null>(null);
   const [sessionResolved, setSessionResolved] = useState(false);
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
   const [commentingId, setCommentingId] = useState<string | null>(null);
   const [selectedPost, setSelectedPost] = useState<FeedPost | null>(null);
   const [postLikes, setPostLikes] = useState<Record<string, { likes: number; hasLiked: boolean }>>({});
   const [postHighlights, setPostHighlights] = useState<Record<string, { highlightCount: number; highlighted: boolean }>>({});
+  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
   const scrolledSentRef = React.useRef<Set<string>>(new Set());
 
-  useEffect(() => {
-    async function loadSession() {
-      try {
-        const response = await fetch("/api/auth/get-session", {
-          method: "GET",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-        });
+  const statusGroups = useMemo(
+    () => groupStatuses(statuses, sessionUserId),
+    [statuses, sessionUserId]
+  );
 
-        if (!response.ok) {
-          setSessionUserId(null);
-          return;
-        }
+  /* ---------- loaders (used on mount, on refreshKey and by pull to refresh) ---------- */
+  async function loadSession() {
+    try {
+      const response = await fetch("/api/auth/get-session", {
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
 
-        const data = await response.json();
-        setSessionUserId(data?.user?.id ?? null);
-      } catch (err) {
-        console.error("Failed to load session for feed:", err);
+      if (!response.ok) {
         setSessionUserId(null);
-      } finally {
-        setSessionResolved(true);
+        setSessionUser(null);
+        return;
       }
+
+      const data = await response.json();
+      setSessionUserId(data?.user?.id ?? null);
+      setSessionUser(
+        data?.user ? { name: data.user.name ?? null, image: data.user.image ?? null } : null
+      );
+    } catch (err) {
+      console.error("Failed to load session for feed:", err);
+      setSessionUserId(null);
+      setSessionUser(null);
+    } finally {
+      setSessionResolved(true);
     }
+  }
 
-    async function loadPosts() {
-      try {
-        setLoading(true);
-        setError("");
+  async function loadPosts(silent = false) {
+    try {
+      if (!silent) setLoading(true);
+      setPostsError("");
 
-        const response = await fetch("/api/posts", {
-          cache: "no-store",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-        });
+      const response = await fetch("/api/posts", {
+        cache: "no-store",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
 
-        const data = await response.json();
+      const data = await response.json();
 
-        if (!response.ok) {
-          throw new Error(data?.message || "Failed to load posts");
-        }
-
-        setPosts(Array.isArray(data.posts) ? data.posts : []);
-      } catch (err) {
-        console.error("Failed to load posts:", err);
-        setError(err instanceof Error ? err.message : "Failed to load posts");
-      } finally {
-        setLoading(false);
+      if (!response.ok) {
+        throw new Error(data?.message || "Failed to load posts");
       }
+
+      setPosts(Array.isArray(data.posts) ? data.posts : []);
+    } catch (err) {
+      console.error("Failed to load posts:", err);
+      setPostsError(err instanceof Error ? err.message : "Failed to load posts");
+    } finally {
+      setLoading(false);
     }
+  }
 
-    async function loadStatuses() {
-      try {
-        const response = await fetch("/api/statuses", {
-          cache: "no-store",
-        });
+  async function loadStatuses() {
+    try {
+      const response = await fetch("/api/statuses", {
+        cache: "no-store",
+        credentials: "include",
+      });
 
-        const data = await response.json();
+      const data = await response.json();
 
-        if (response.ok && data.statuses) {
-          setStatuses(data.statuses);
-        }
-      } catch (err) {
-        console.error("Failed to load statuses:", err);
+      if (response.ok && data.statuses) {
+        setStatuses(data.statuses);
       }
+    } catch (err) {
+      console.error("Failed to load statuses:", err);
+    } finally {
+      setStatusesLoaded(true);
     }
+  }
 
+  async function refreshAll() {
+    setError("");
+    await Promise.all([loadSession(), loadPosts(true), loadStatuses()]);
+  }
+
+  useEffect(() => {
     loadSession();
     loadPosts();
     loadStatuses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
   useEffect(() => {
     if (incomingPost) {
       prependPost(incomingPost);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incomingPost]);
 
   function getPostId(post: FeedPost) {
@@ -392,6 +781,58 @@ export function Feed({
       }),
     );
   }, [postLikes, sessionUserId]);
+
+  useEffect(() => {
+    if (!sessionUserId) {
+      setBookmarkedIds(new Set());
+      return;
+    }
+    fetch("/api/bookmarks", { credentials: "include" })
+      .then((r) => r.json().catch(() => ({} as any)))
+      .then((d: any) => {
+        if (Array.isArray(d?.bookmarkedIds)) setBookmarkedIds(new Set(d.bookmarkedIds.map(String)));
+      })
+      .catch(() => {});
+  }, [sessionUserId, posts.length]);
+
+  async function handleBookmark(post: FeedPost) {
+    const postId = getPostId(post);
+    if (!postId || !sessionUserId) return;
+    const wasBookmarked = bookmarkedIds.has(postId);
+    const next = !wasBookmarked;
+    setBookmarkedIds((prev) => {
+      const s = new Set(prev);
+      if (next) s.add(postId);
+      else s.delete(postId);
+      return s;
+    });
+    try {
+      const res = await fetch("/api/bookmarks", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId, bookmarked: next }),
+      });
+      const d = await res.json().catch(() => ({} as any));
+      if (!res.ok) throw new Error(d?.message || "Bookmark failed");
+      if (typeof d.bookmarked === "boolean") {
+        setBookmarkedIds((prev) => {
+          const s = new Set(prev);
+          if (d.bookmarked) s.add(postId);
+          else s.delete(postId);
+          return s;
+        });
+      }
+    } catch (e) {
+      setBookmarkedIds((prev) => {
+        const s = new Set(prev);
+        if (wasBookmarked) s.add(postId);
+        else s.delete(postId);
+        return s;
+      });
+      setError(e instanceof Error ? e.message : "Unable to bookmark");
+    }
+  }
 
   async function handleLike(post: FeedPost) {
     const postId = getPostId(post);
@@ -664,37 +1105,17 @@ export function Feed({
     }
   }
 
-  async function handleReshare(post: FeedPost) {
-    const postId = getPostId(post);
-
-    if (!postId || !sessionUserId) return;
-
-    try {
-      const response = await fetch(`/api/posts/${postId}`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "reshare" }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.message || "Unable to reshare post");
-      }
-
-      // Add the reshared post to the feed
-      if (data?.post) {
-        prependPost(data.post);
-      }
-      setError("");
-    } catch (err) {
-      console.error("Reshare failed:", err);
-      setError(err instanceof Error ? err.message : "Unable to reshare post");
+  function handleReshareSuccess(newPost: FeedPost) {
+    if (!newPost) return;
+    const originalId = (newPost as any).reshareOf || (newPost as any).reshareData?.originalPostId;
+    if (originalId) {
+      setPosts((cur)=>cur.map((p)=> String((p as any)._id ?? (p as any).id)===String(originalId) ? {...p, reshareCount: ((p as any).reshareCount ?? 0)+1} : p));
     }
+    prependPost(newPost);
+    setError("");
   }
 
-  function handleStatusImageChange(file?: File) {
+  async function handleStatusImageChange(file?: File) {
     setStatusError("");
     if (!file) return;
 
@@ -703,9 +1124,11 @@ export function Feed({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => setStatusImage(String(reader.result || ""));
-    reader.readAsDataURL(file);
+    try {
+      setStatusImage(await shrinkImage(file));
+    } catch (err) {
+      setStatusError(err instanceof Error ? err.message : "Could not load that image.");
+    }
   }
 
   async function handleCreateStatus() {
@@ -735,7 +1158,8 @@ export function Feed({
         throw new Error(data?.message || "Unable to create status");
       }
 
-      setStatuses((current) => [data.status, ...current]);
+      // reload so the new status comes back with your name, photo and time
+      await loadStatuses();
       setStatusImage("");
       setStatusTitle("");
       setStatusTag("Update");
@@ -747,302 +1171,269 @@ export function Feed({
     }
   }
 
+  function openAddStatus() {
+    if (!sessionUserId) {
+      setError("Please sign in to add a status.");
+      return;
+    }
+    setStatusModalOpen(true);
+  }
+
   return (
-    <div className="mx-auto w-full max-w-[880px] px-4">
-      {error && (
-        <div className="mb-4 rounded-2xl border border-[#f3d7d0] bg-[#fff4f1] px-3 py-2 text-sm text-[#7f362f] transition-all duration-300">
-          {error}
+    <PullToRefresh onRefresh={refreshAll}>
+      <div className="mx-auto w-full max-w-[880px] pb-24">
+        <style>{FEED_CSS}</style>
+        {/* STATUS: gradient card, one story per person */}
+        <div className="-mt-3 sm:mt-6">
+          <StoryRail
+            groups={statusGroups}
+            viewed={viewedGroups}
+            me={sessionUser}
+            loading={!statusesLoaded}
+            onAdd={openAddStatus}
+            onOpen={(index) => setViewerIndex(index)}
+          />
         </div>
-      )}
 
-      {sessionResolved && !sessionUserId && (
-        <div className="mb-4 flex flex-col gap-2 rounded-2xl border border-[#cfe8d8] bg-[#f1faf4] px-4 py-3 text-sm text-[#28573d] sm:flex-row sm:items-center sm:justify-between">
-          <span>You are not logged in. You can browse the feed, but sign in to post, like, or comment.</span>
-          <Link href="/login" className="shrink-0 font-semibold text-[#07843b] underline underline-offset-2">
-            Log in
-          </Link>
-        </div>
-      )}
-
-      <Section title="ADDED NETIZENS STATUS" className="mt-0 sm:mt-6">
-        <div
-          className="mx-2 flex gap-2.5 overflow-x-auto px-3 pb-2 sm:mx-0 sm:px-4
-                     snap-x snap-proximity scroll-px-7 sm:scroll-px-9
-                     [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          <button
-            type="button"
-            onClick={() => {
-              if (!sessionUserId) {
-                setError("Please sign in to add a status.");
-                return;
-              }
-              setStatusModalOpen(true);
-            }}
-            className="flex h-[184px] w-[132px] shrink-0 snap-start flex-col items-center justify-center gap-2
-                       rounded-[17px] border-2 border-dashed border-[#b9d9c6] bg-[#f1faf4] text-[#168b45]
-                       transition hover:bg-[#e7f7ed] active:scale-95 first:ml-auto sm:h-[210px] sm:w-[150px]"
-            aria-label="Add status"
-          >
-            <span className="grid h-11 w-11 place-items-center rounded-full bg-[#1c9d57] text-white">
-              <Plus className="h-6 w-6" aria-hidden="true" />
-            </span>
-            <span className="text-xs font-semibold">Add status</span>
-          </button>
-
-          {statuses.map((status) => (
-            <button
-              key={status.id || status._id}
-              className="relative h-[184px] w-[132px] shrink-0 snap-start overflow-hidden rounded-[17px]
-                         border-0 bg-[#20342d] p-0 text-left text-white last:mr-auto sm:h-[210px] sm:w-[150px]"
-              onClick={() => onNavigate?.("feed")}
-            >
-              <img
-                src={status.image}
-                alt={status.title || "Status"}
-                className="h-full w-full object-cover brightness-[0.75]"
-              />
-              <div className="absolute inset-x-0 bottom-0 top-[45%] bg-gradient-to-b from-transparent to-black/80" />
-              <span className="absolute left-2 top-2 z-10 rounded-[18px] bg-emerald-500 px-2 py-1 text-xs font-semibold">
-                {status.tag || "Update"}
-              </span>
-              <strong className="absolute bottom-3 left-3 right-3 z-10 text-sm leading-tight">
-                {status.title || "Status"}
-              </strong>
-            </button>
-          ))}
-
-          {statuses.length === 0 && (
-            <div
-              className="flex h-[184px] w-[160px] shrink-0 items-center rounded-[17px] border border-[#e5ece7]
-                         bg-white px-4 text-xs text-[#68776f] last:mr-auto sm:h-[210px]"
-            >
-              No statuses yet — be the first to post one.
-            </div>
-          )}
-        </div>
-      </Section>
-
-      <Section title="GROUPS" action="See all" className="mt-2 sm:mt-4">
-        <div
-          className="mx-2 flex gap-2.5 overflow-x-auto px-3 pb-2 sm:mx-0 sm:px-4
-                     snap-x snap-proximity scroll-px-7 sm:scroll-px-9
-                     [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {groups.map((group) => (
-            <button
-              key={group.name}
-              onClick={() => onNavigate?.("groups")}
-              className="flex w-[300px] shrink-0 snap-start items-center gap-3 rounded-[17px] border border-gray-200
-                         bg-white p-3.5 text-left shadow-[0_3px_12px_rgba(25,58,45,0.03)]
-                         first:ml-auto last:mr-auto sm:w-[340px]"
-            >
-              <Avatar
-                src={group.image}
-                alt={group.name}
-                className="h-[58px] w-[58px] shrink-0 rounded-[14px] object-cover"
-              />
-
-              <div className="min-w-0 flex-1">
-                <b className="block truncate text-base">{group.name}</b>
-                <span className="mt-1 block text-sm text-slate-500">{group.members}</span>
-              </div>
-
-              <div className="flex shrink-0 items-center pl-2">
-                <Avatar src="/avatar-1.png" alt="" className="h-7 w-7 rounded-full border-2 border-white object-cover" />
-                <Avatar src="/avatar-2.png" alt="" className="-ml-2 h-7 w-7 rounded-full border-2 border-white object-cover" />
-                <Avatar src="/avatar-3.png" alt="" className="-ml-2 h-7 w-7 rounded-full border-2 border-white object-cover" />
-                <i className="-ml-2 grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-emerald-100 text-[11px] font-bold not-italic text-emerald-700">
-                  {group.more}
-                </i>
-              </div>
-            </button>
-          ))}
-        </div>
-      </Section>
-
-      <Section title="RECENT POSTS" className="mt-3 sm:mt-6">
-        {loading ? (
-          <div className="mx-3 rounded-2xl border border-[#edf3ee] bg-white p-5 text-sm text-[#5b6b62]">Loading posts…</div>
-        ) : error ? (
-          <div className="mx-3 rounded-2xl border border-[#f3d7d0] bg-[#fff4f1] p-5 text-sm text-[#7f362f]">
-            <span>{error}</span>{" "}
+        {error && (
+          <div className="mx-3 my-4 flex items-start justify-between gap-3 rounded-2xl border border-[#f3d7d0] bg-[#fff4f1] px-4 py-3 text-sm text-[#7f362f] sm:mx-0">
+            <span>{error}</span>
             <button
               type="button"
-              onClick={() => {
-                setError("");
-                setLoading(true);
-                fetch("/api/posts", { cache: "no-store", credentials: "include", headers: { "Content-Type": "application/json" } })
-                  .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
-                  .then(({ ok, d }) => {
-                    if (!ok) throw new Error(d?.message || "Failed to load posts");
-                    setPosts(Array.isArray(d.posts) ? d.posts : []);
-                  })
-                  .catch((e) => setError(e instanceof Error ? e.message : "Failed to load posts"))
-                  .finally(() => setLoading(false));
-              }}
-              className="font-semibold underline underline-offset-2"
+              onClick={() => setError("")}
+              className="shrink-0 text-xs font-bold underline underline-offset-2"
             >
-              Retry
+              Dismiss
             </button>
           </div>
-        ) : posts.length === 0 ? (
-          <div className="mx-3 rounded-2xl border border-[#edf3ee] bg-white p-5 text-center text-sm text-[#5b6b62]">No posts yet — be the first to share something.</div>
-        ) : (
-          <div className="px-4 flex flex-col gap-1">
-            {posts.map((post) => {
-              const postId = getPostId(post);
-              // fire-and-forget scrolled tracking – set semantics so algorithm knows user saw it
-              if (
-                sessionUserId &&
-                postId &&
-                !(Array.isArray((post as any).scrolled) && (post as any).scrolled.includes(sessionUserId)) &&
-                !scrolledSentRef.current.has(postId)
-              ) {
-                scrolledSentRef.current.add(postId);
-                fetch(`/api/posts/${postId}`, {
-                  method: "PATCH",
-                  credentials: "include",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ action: "scrolled" }),
-                }).catch(() => {});
-              }
-              const imageList = Array.isArray(post.images)
-                ? post.images.filter((image): image is string => typeof image === "string" && image.trim().length > 0)
-                : [];
-              const legacyHb: string[] = Array.isArray((post as any).highlightedBy)
-                ? (post as any).highlightedBy
-                : Array.isArray(post.highlightedByUser)
-                  ? post.highlightedByUser!
-                  : Array.isArray((post as any).likedBy)
-                    ? (post as any).likedBy
-                    : [];
-              const isLiked = Boolean(sessionUserId && legacyHb.includes(sessionUserId));
-              const isHighlighted = Boolean(sessionUserId && legacyHb.includes(sessionUserId));
+        )}
 
-              return (
-                <PostCard
-                  key={postId || `${post.userName ?? "post"}-${post.createdAt ?? Math.random()}`}
-                  post={post}
-                  postId={postId}
-                  imageList={imageList}
-                  isLiked={isLiked}
-                  isHighlighted={isHighlighted}
-                  sessionUserId={sessionUserId}
-                  onOpenProfile={onOpenProfile}
-                  onSelectPost={setSelectedPost}
-                  onLike={handleLike}
-                  onHighlight={handleHighlight}
-                  onComment={handleComment}
-                  onShare={handleShare}
-                  onReshare={handleReshare}
-                  onCommentDraftChange={(currentPostId, value) =>
-                    setCommentDrafts((current) => ({ ...current, [currentPostId]: value }))
-                  }
-                  commentDraft={commentDrafts[postId] ?? ""}
-                  commenting={commentingId === postId}
-                  onToggleCommenting={(currentPostId) =>
-                    setCommentingId((current) => (current === currentPostId ? null : currentPostId))
-                  }
-                  postLikes={postLikes}
-                  postHighlights={postHighlights}
-                  onHandleComment={handleComment}
-                />
-              );
-            })}
+        {sessionResolved && !sessionUserId && (
+          <div className="mx-3 my-4 flex flex-col gap-2 rounded-2xl border border-[#cfe8d8] bg-[#f1faf4] px-4 py-3 text-sm text-[#28573d] sm:mx-0 sm:flex-row sm:items-center sm:justify-between">
+            <span>You are not logged in. You can browse the feed, but sign in to post, like, or comment.</span>
+            <Link href="/login" className="shrink-0 font-semibold text-[#07843b] underline underline-offset-2">
+              Log in
+            </Link>
           </div>
         )}
-      </Section>
 
-      {selectedPost && (
-        <PostDetailModal
-          post={selectedPost}
-          onClose={() => setSelectedPost(null)}
-          sessionUserId={sessionUserId}
-        />
-      )}
-
-      {statusModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-6"
-          onClick={() => setStatusModalOpen(false)}
+        {/* GROUPS */}
+        <Section
+          title="Groups"
+          action="See all"
+          onAction={() => onNavigate?.("groups")}
+          className="mt-5"
         >
-          <div
-            className="w-full max-w-md rounded-t-3xl bg-white p-5 shadow-xl sm:rounded-3xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-[#15271d]">Add status</h3>
+          <GroupCarousel items={communityGroups as any[]} onOpen={() => onNavigate?.("groups")} />
+        </Section>
+
+        {/* RECENT POSTS */}
+        <Section title="Recent posts" className="mt-6">
+          {loading ? (
+            <FeedSkeleton />
+          ) : postsError && posts.length === 0 ? (
+            <div className="mx-3 rounded-2xl border border-[#f3d7d0] bg-[#fff4f1] p-5 text-center text-sm text-[#7f362f] sm:mx-0">
+              <p>{postsError}</p>
               <button
                 type="button"
-                onClick={() => setStatusModalOpen(false)}
-                className="rounded-xl bg-[#f1f5f2] px-3 py-1.5 text-xs font-semibold text-[#5f7073]"
+                onClick={() => loadPosts()}
+                className="mt-3 rounded-full border border-[#e8c2b9] px-4 py-1.5 font-semibold"
               >
-                Close
+                Try again
               </button>
             </div>
+          ) : posts.length === 0 ? (
+            <div
+              className={`mx-3 rounded-2xl border p-8 text-center text-sm sm:mx-0 ${ui.border} ${ui.card} ${ui.muted}`}
+            >
+              <Plus className="mx-auto mb-2 h-6 w-6" aria-hidden="true" />
+              No posts yet. Be the first to share something.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {posts.map((post) => {
+                const postId = getPostId(post);
+                // fire-and-forget scrolled tracking – set semantics so algorithm knows user saw it
+                if (
+                  sessionUserId &&
+                  postId &&
+                  !(Array.isArray((post as any).scrolled) && (post as any).scrolled.includes(sessionUserId)) &&
+                  !scrolledSentRef.current.has(postId)
+                ) {
+                  scrolledSentRef.current.add(postId);
+                  fetch(`/api/posts/${postId}`, {
+                    method: "PATCH",
+                    credentials: "include",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "scrolled" }),
+                  }).catch(() => {});
+                }
+                const imageList = ((post.reshareOf && post.reshareData?.originalImages ? post.reshareData.originalImages : post.images) as string[] | null | undefined || []).filter((image: string) => typeof image === "string" && image.trim().length > 0);
+                const legacyHb: string[] = Array.isArray((post as any).highlightedBy)
+                  ? (post as any).highlightedBy
+                  : Array.isArray(post.highlightedByUser)
+                    ? post.highlightedByUser!
+                    : Array.isArray((post as any).likedBy)
+                      ? (post as any).likedBy
+                      : [];
+                const isLiked = Boolean(sessionUserId && legacyHb.includes(sessionUserId));
+                const isHighlighted = Boolean(sessionUserId && legacyHb.includes(sessionUserId));
 
-            <div className="mt-4 space-y-3">
-              <label className="block cursor-pointer">
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(event) => handleStatusImageChange(event.target.files?.[0])}
-                />
-                <span className="flex h-52 w-full items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-[#b9d9c6] bg-[#f1faf4] text-sm font-semibold text-[#168b45]">
-                  {statusImage ? (
-                    <img src={statusImage} alt="Status preview" className="h-full w-full object-cover" />
-                  ) : (
-                    "Choose an image"
-                  )}
-                </span>
-              </label>
-
-              <input
-                type="text"
-                value={statusTitle}
-                onChange={(event) => setStatusTitle(event.target.value)}
-                maxLength={120}
-                placeholder="Give it a title..."
-                className="w-full rounded-xl border border-[#dfe9e2] px-3 py-2.5 text-sm outline-none focus:border-[#1c9d57]"
-              />
-
-              <div className="flex flex-wrap gap-2">
-                {["Update", "News", "Event", "Alert"].map((tag) => (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => setStatusTag(tag)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                      statusTag === tag
-                        ? "bg-[#1c9d57] text-white"
-                        : "bg-[#f1f5f2] text-[#5f7073]"
-                    }`}
+                return (
+                  <div
+                    key={postId || `${post.userName ?? "post"}-${post.createdAt ?? Math.random()}`}
+                    className={`overflow-hidden border-y shadow-sm sm:rounded-2xl sm:border ${ui.border} ${ui.card}`}
                   >
-                    {tag}
-                  </button>
-                ))}
+                    <PostCard
+                      post={post}
+                      postId={postId}
+                      imageList={imageList}
+                      isLiked={isLiked}
+                      isHighlighted={isHighlighted}
+                      sessionUserId={sessionUserId}
+                      onOpenProfile={onOpenProfile}
+                      onSelectPost={setSelectedPost}
+                      onLike={handleLike}
+                      onHighlight={handleHighlight}
+                      onComment={handleComment}
+                      onShare={handleShare}
+                      onReshare={handleReshareSuccess}
+                      onCommentDraftChange={(currentPostId, value) =>
+                        setCommentDrafts((current) => ({ ...current, [currentPostId]: value }))
+                      }
+                      commentDraft={commentDrafts[postId] ?? ""}
+                      commenting={commentingId === postId}
+                      onToggleCommenting={(currentPostId) =>
+                        setCommentingId((current) => (current === currentPostId ? null : currentPostId))
+                      }
+                      postLikes={postLikes}
+                      postHighlights={postHighlights}
+                      onHandleComment={handleComment}
+                      bookmarkedIds={bookmarkedIds}
+                      onBookmark={handleBookmark}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Section>
+
+        {selectedPost && (
+          <PostDetailModal
+            post={selectedPost}
+            onClose={() => setSelectedPost(null)}
+            sessionUserId={sessionUserId}
+          />
+        )}
+
+        {/* Full screen status viewer */}
+        {viewerIndex !== null && statusGroups.length > 0 && (
+          <StoryViewer
+            groups={statusGroups}
+            startIndex={viewerIndex}
+            onClose={() => setViewerIndex(null)}
+            onViewed={(key) =>
+              setViewedGroups((current) => {
+                if (current.has(key)) return current;
+                const next = new Set(current);
+                next.add(key);
+                return next;
+              })
+            }
+          />
+        )}
+
+        {/* Add status */}
+        {statusModalOpen && (
+          <div
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-0 backdrop-blur-sm sm:items-center sm:p-6"
+            onClick={() => setStatusModalOpen(false)}
+          >
+            <div
+              className={`w-full max-w-md rounded-t-3xl p-5 shadow-2xl sm:rounded-3xl ${ui.card}`}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <h3 className={`text-lg font-bold ${ui.text}`}>Add status</h3>
+                <button
+                  type="button"
+                  onClick={() => setStatusModalOpen(false)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold ${ui.bubble} ${ui.muted}`}
+                >
+                  Close
+                </button>
               </div>
 
-              {statusError && (
-                <p className="rounded-xl bg-[#fff4f1] px-3 py-2 text-xs text-[#7f362f]">
-                  {statusError}
-                </p>
-              )}
+              <div className="mt-4 space-y-3">
+                <label className="block cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(event) => {
+                      handleStatusImageChange(event.target.files?.[0]);
+                      event.target.value = "";
+                    }}
+                  />
+                  <span className="flex h-60 w-full items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-[#c4b5fd] bg-[#f5f0ff] text-sm font-semibold text-[#6d28d9] dark:border-[#4c2a8c] dark:bg-[#1c1330] dark:text-[#c4b5fd]">
+                    {statusImage ? (
+                      <img src={statusImage} alt="Status preview" className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="flex flex-col items-center gap-2">
+                        <ImagePlus size={28} />
+                        Choose an image
+                      </span>
+                    )}
+                  </span>
+                </label>
 
-              <button
-                type="button"
-                onClick={handleCreateStatus}
-                disabled={statusSaving}
-                className="w-full rounded-xl bg-[#1c9d57] py-3 text-sm font-semibold text-white transition active:scale-95 disabled:opacity-60"
-              >
-                {statusSaving ? "Posting…" : "Post status"}
-              </button>
+                <input
+                  type="text"
+                  value={statusTitle}
+                  onChange={(event) => setStatusTitle(event.target.value)}
+                  maxLength={120}
+                  placeholder="Give it a title..."
+                  className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none focus:border-[#7c3aed] ${ui.border} ${ui.card} ${ui.text}`}
+                />
+
+                <div className="flex flex-wrap gap-2">
+                  {["Update", "News", "Event", "Alert"].map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setStatusTag(tag)}
+                      className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+                        statusTag === tag
+                          ? "bg-[#7c3aed] text-white"
+                          : `${ui.bubble} ${ui.muted}`
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+
+                {statusError && (
+                  <p className="rounded-xl bg-[#fff4f1] px-3 py-2 text-xs text-[#7f362f]">
+                    {statusError}
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleCreateStatus}
+                  disabled={statusSaving}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#7c3aed] py-3 text-sm font-semibold text-white transition active:scale-95 disabled:opacity-60"
+                >
+                  {statusSaving && <Loader2 size={16} className="animate-spin" />}
+                  {statusSaving ? "Posting…" : "Post status"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </PullToRefresh>
   );
 }

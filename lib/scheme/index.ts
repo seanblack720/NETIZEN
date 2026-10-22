@@ -9,6 +9,7 @@ export { default as Group, groupSchema } from "./group";
 export { default as TaxiSpot, taxiSpotSchema } from "./taxi-spot";
 export { default as Status, statusSchema } from "./status";
 export { default as ProRequest, proRequestSchema } from "./pro-request";
+export { default as NetizenRequest, netizenRequestSchema } from "./netizen-request";
 export { default as Message, messageSchema } from "./message";
 export { default as Job, jobSchema } from "./job";
 export { default as Petition, petitionSchema } from "./petition";

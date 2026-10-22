@@ -25,13 +25,13 @@ type BottomNavProps = {
   active: NavId;
   onNavigate: (id: NavId) => void;
   /**
-   * Called when a tile in the create sheet is tapped. The sheet closes first.
-   * "post" | "taxi-spot" | "video" | "phanda" | "khuluma"
+   * Called when a tile in the create sheet is tapped (taxi-spot, video, phanda, khuluma).
+   * "Make a post" never goes through this: it always calls onCreate.
    */
   onCreateAction?: (action: CreateAction) => void;
   /**
-   * Your existing "open the create post modal" handler. Used by "Make a post" (and as a fallback
-   * for the other tiles) when onCreateAction is not passed.
+   * Your existing "open the create post modal" handler.
+   * ONLY called by the "Make a post" tile (and as a fallback for tiles with no destination).
    */
   onCreate?: () => void;
   /** Called by the "Refresh feed" button, e.g. () => setRefreshKey((k) => k + 1) */
@@ -113,17 +113,19 @@ export function BottomNav({
 
   function handleCreateAction(action: CreateAction) {
     closeCreate();
+
+    // "Make a post" ALWAYS opens the create-post modal, nothing else does
     if (action === "post") {
-      // Per spec: bottom-nav "Make a post" opens the create-post modal directly
       onCreate?.();
       return;
     }
+
     if (onCreateAction) {
       onCreateAction(action);
       return;
     }
 
-    // Fallbacks so every tile still does something before onCreateAction is wired up
+    // Fallbacks so every other tile still does something before onCreateAction is wired up
     if (action === "video") {
       onCreate?.();
       return;
@@ -264,7 +266,7 @@ export function BottomNav({
           <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-[#dfe7e2] dark:bg-[#2a4a3e]" aria-hidden="true" />
 
           <div className="grid grid-cols-2 gap-3">
-            {/* Make a post: tall tile, spans two rows */}
+            {/* Make a post: tall tile, spans two rows. The ONLY thing that opens the create-post modal. */}
             <button
               type="button"
               onClick={() => handleCreateAction("post")}
@@ -324,12 +326,13 @@ export function BottomNav({
         <div className="mx-auto flex max-w-md items-end justify-between gap-1">
           {items.slice(0, 2).map(renderItem)}
           <div className="flex min-h-10 flex-1 justify-center">
+            {/* The + opens the create options sheet (and becomes an X to close it) */}
             <PostButton
               compact
-              open={false}
+              open={createOpen}
               onClick={() => {
-                closeAll();
-                onCreate?.();
+                closeMenu();
+                setCreateOpen((open) => !open);
               }}
             />
           </div>
@@ -347,7 +350,7 @@ export function BottomNav({
             className={`flex min-h-10 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-0 px-0.5 text-[10px] font-medium transition-all duration-200 active:scale-95 ${
               menuOpen
                 ? "bg-[#e7f7ed] text-[#07843b] dark:bg-[#143a26] dark:text-[#7ee0b0]"
-                : "bg-transparent text-[#65756f] hover:bg-[#f2f6f3] hover:text-[#163d28]"
+                : "bg-transparent text-[#65756f] hover:bg-[#f2f6f3] hover:text-[#163d28] dark:text-[#8aa39b] dark:hover:bg-[#18231f] dark:hover:text-[#e6ece9]"
             }`}
           >
             <SquareChevronUp

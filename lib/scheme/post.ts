@@ -7,6 +7,7 @@ export const postSchema = new Schema(
     userId: { type: String, required: true, index: true },
     userName: { type: String, required: true, trim: true, maxlength: 120 },
     userImage: { type: String, default: null },
+    userHandle: { type: String, default: null, trim: true },
     content: { type: String, required: true, trim: true, maxlength: 5000 },
     images: [{ type: String }],
     likes: { type: Number, default: 0, min: 0 },

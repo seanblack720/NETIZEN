@@ -186,15 +186,27 @@ export async function POST(request: NextRequest) {
 
     const client = await clientPromise
     const db = client.db(DB_NAME)
-
+    let dbHandle = null
+    try {
+      const u = await db.collection('user').findOne({ id: session.user.id } as any, { projection: { userHandle: 1 } } as any)
+      dbHandle = (u as any)?.userHandle || null
+      if (!dbHandle) {
+        const { ObjectId } = await import('mongodb')
+        if (ObjectId.isValid(session.user.id)) {
+          const u2 = await db.collection('user').findOne({ _id: new ObjectId(session.user.id) } as any, { projection: { userHandle: 1 } } as any)
+          dbHandle = (u2 as any)?.userHandle || null
+        }
+      }
+    } catch {}
     const post = {
       content: trimmed,
       images: safeImages,
 
-      // Trusted fields, pulled from the session, not the request body.
+      // Trusted fields, pulled from the session + DB handle, not the request body.
       userId: session.user.id,
       userName: session.user.name || 'Unknown user',
       userImage: session.user.image || null,
+      userHandle: dbHandle || null,
 
       likes: 0,
       comments: 0,

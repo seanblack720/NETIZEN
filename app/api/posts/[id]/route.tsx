@@ -799,27 +799,55 @@ export async function PATCH(
         )
       }
 
+      const rawDesc = typeof body?.reshareDescription === "string" ? body.reshareDescription.trim() : ""
+      const reshareDescription = rawDesc.slice(0, 5000)
+      // If this post is itself a reshare, keep pointing to the ultimate original
+      const ultimateOriginalId = post.reshareData?.originalPostId || id
+      const ultimateContent = post.reshareData?.originalContent ?? post.content
+      const ultimateImages = Array.isArray(post.reshareData?.originalImages) ? post.reshareData.originalImages : Array.isArray(post.images) ? post.images : []
+      const ultimateUserName = post.reshareData?.originalUserName ?? post.userName
+      const ultimateUserImage = post.reshareData?.originalUserImage ?? post.userImage
+      const ultimateUserId = post.reshareData?.originalUserId ?? post.userId
+      const ultimateUserHandle = (post.reshareData as any)?.originalUserHandle ?? (post as any).userHandle ?? null
+
+      let resharerHandle = null
+      try {
+        const uu = await db.collection('user').findOne({ id: session.user.id } as any, { projection: { userHandle: 1 } } as any)
+        resharerHandle = (uu as any)?.userHandle || null
+        if (!resharerHandle) {
+          const { ObjectId: OID2 } = await import('mongodb')
+          if (OID2.isValid(session.user.id)) {
+            const uu2 = await db.collection('user').findOne({ _id: new OID2(session.user.id) } as any, { projection: { userHandle: 1 } } as any)
+            resharerHandle = (uu2 as any)?.userHandle || null
+          }
+        }
+      } catch {}
       const reshare = {
-        content: post.content,
+        content: reshareDescription,
         images: Array.isArray(post.images) ? post.images : [],
         userId: session.user.id,
         userName: session.user.name || 'Unknown user',
         userImage: session.user.image || null,
+        userHandle: resharerHandle || null,
         likes: 0,
         comments: 0,
         shares: 0,
         likedBy: [],
+        highlightedBy: [],
+        scrolled: [],
+        scrolledAt: {},
         opened: [],
         reactions: {},
-        reshareOf: id,
+        reshareOf: ultimateOriginalId,
         reshareCount: 0,
         reshareData: {
-          originalPostId: id,
-          originalContent: post.content,
-          originalImages: Array.isArray(post.images) ? post.images : [],
-          originalUserName: post.userName || 'Unknown user',
-          originalUserImage: post.userImage || null,
-          originalUserId: post.userId,
+          originalPostId: ultimateOriginalId,
+          originalContent: ultimateContent,
+          originalImages: ultimateImages,
+          originalUserName: ultimateUserName || 'Unknown user',
+          originalUserImage: ultimateUserImage || null,
+          originalUserId: ultimateUserId,
+          originalUserHandle: ultimateUserHandle || null,
         },
         createdAt: new Date(),
         updatedAt: new Date(),

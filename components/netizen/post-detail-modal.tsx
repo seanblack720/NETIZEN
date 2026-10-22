@@ -1,27 +1,14 @@
 "use client";
 
-import {
-  Heart,
-  Star,
-  Plus,
-  X,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  MoreHorizontal,
-  EyeOff,
-  Flag,
-  ThumbsUp,
-  Bookmark,
-} from "lucide-react";
+import { Heart, X, ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Avatar } from "./app-shell";
 import { PostImageGrid } from "./post-image-grid";
 import { ReplyModal } from "./reply-modal";
 import { useModalHistory } from "./use-modal-history";
 import { createClientNotification } from "@/lib/notifications-client";
 import { ShareModal } from "./share-modal";
 import { PostActionBar } from "./post-action-bar";
+import { FollowButtons, PostMenu, VerifiedBadge, n } from "./post-extras";
 
 type CommentReply = {
   _id?: string;
@@ -47,7 +34,8 @@ type CommentItem = {
   replies?: CommentReply[];
 };
 
-function clamp0(n: any) { return Math.max(0, Math.floor(Number(n) || 0)); }
+// kept as an alias so every count in this file can never go below 0
+const clamp0 = n;
 
 type FeedPost = {
   id?: string;
@@ -95,6 +83,22 @@ const reactionOptions = [
 // A plain "like" (heart button) counts as this emoji when no specific reaction is saved
 const DEFAULT_LIKE_EMOJI = reactionOptions[1].emoji;
 
+/* =========================================================
+   THEME TOKENS – one place for every light/dark pair so the
+   whole page stays consistent (same palette as the bottom nav)
+========================================================== */
+const ui = {
+  page: "bg-white dark:bg-[#101a17]",
+  text: "text-[#15271d] dark:text-[#e6ece9]",
+  muted: "text-[#718078] dark:text-[#9bb0a8]",
+  border: "border-[#e3ebe6] dark:border-[#1e3a2f]",
+  // lighter than the page in dark mode so comments and replies are easy to read
+  bubble: "bg-[#f0f2f1] dark:bg-[#24382f]",
+  hover: "hover:bg-[#f2f6f3] dark:hover:bg-[#1f332b]",
+  accent: "text-[#168b45] dark:text-[#7ee0b0]",
+  panel: "border-[#dcebe1] bg-white dark:border-[#1e3a2f] dark:bg-[#18231f]",
+};
+
 function formatRelativeTime(value?: string | Date) {
   if (!value) return "Just now";
 
@@ -126,6 +130,52 @@ function formatRelativeTime(value?: string | Date) {
 
 function countReplies(comment: CommentItem) {
   return Array.isArray(comment.replies) ? comment.replies.length : 0;
+}
+
+function getInitials2(name?: string | null) {
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "??";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+/* Round avatar: the picture, or the initials when there is none / it fails to load */
+function Face({
+  src,
+  alt,
+  className,
+}: {
+  src?: string | null;
+  alt?: string | null;
+  className: string;
+}) {
+  const [errored, setErrored] = useState(false);
+  const hasSrc =
+    !!src && typeof src === "string" && src.trim().length > 0 && !errored;
+
+  if (!hasSrc) {
+    return (
+      <div
+        className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e8efe8] font-semibold text-[#2f6b4f] dark:bg-[#24382f] dark:text-[#7ee0b0] ${className}`}
+        aria-label={alt || "User"}
+      >
+        <span className="text-xs leading-none">{getInitials2(alt)}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`shrink-0 overflow-hidden rounded-full bg-[#e8efe8] dark:bg-[#24382f] ${className}`}
+    >
+      <img
+        src={String(src)}
+        alt={alt || "User"}
+        className="h-full w-full object-cover"
+        onError={() => setErrored(true)}
+      />
+    </div>
+  );
 }
 
 /* =========================================================
@@ -305,7 +355,6 @@ export function PostDetailModal({
   onSelectPost?: (post: FeedPost) => void;
   sessionUserId: string | null;
 }) {
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const deriveHb = (p: FeedPost): string[] =>
     Array.isArray((p as any).highlightedBy)
@@ -343,14 +392,10 @@ export function PostDetailModal({
   const [replyModalOpen, setReplyModalOpen] = useState(false);
   const [repliesModalOpen, setRepliesModalOpen] = useState(false);
   const [repliesTarget, setRepliesTarget] = useState<CommentItem | null>(null);
-  const [replyDraft, setReplyDraft] = useState("");
   const [replyingToUserName, setReplyingToUserName] = useState<string | null>(null);
-  const [commentReactionMenuId, setCommentReactionMenuId] = useState<string | null>(
-    null
-  );
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [isBookmarked, setIsBookmarked] = useState(false);
 
   const discussionRef = useRef<HTMLDivElement | null>(null);
   const viewLoggedRef = useRef(false);
@@ -364,12 +409,6 @@ export function PostDetailModal({
   );
   const totalImages = imageList.length;
 
-  const gallerySwipe = useSwipe({
-    index: currentImageIndex,
-    count: totalImages,
-    onChange: setCurrentImageIndex,
-  });
-
   const totalReplyCount = commentsList.reduce(
     (sum, comment) => sum + countReplies(comment),
     0
@@ -378,6 +417,10 @@ export function PostDetailModal({
   const myReaction = sessionUserId ? reactionMap[sessionUserId] ?? null : null;
   const reactionCountDisplay = clamp0(Object.keys(reactionMap).length);
   const hasReaction = Boolean(myReaction);
+  const commentsTotal = clamp0(commentsList.length);
+  const sharesTotal = clamp0(shareCount);
+  // total of highlights + emoji reactions, shown as plain text (no emojis, no hearts)
+  const allReactions = clamp0(highlightCount) + reactionCountDisplay;
 
   // Who has highlighted the post right now (server data adjusted by the local like state) – likes == highlights now
   const likedByIds = useMemo(() => {
@@ -450,7 +493,7 @@ export function PostDetailModal({
 
         const data = await response.json().catch(() => null);
         if (typeof data?.opened === "number") {
-          setOpenedCount(data.opened);
+          setOpenedCount(clamp0(data.opened));
         }
       } catch (err) {
         console.error("Failed to record post view:", err);
@@ -592,7 +635,7 @@ export function PostDetailModal({
       if (response.ok) {
         const data = await response.json();
         if (typeof data?.post?.shares === "number") {
-          setShareCount(data.post.shares);
+          setShareCount(clamp0(data.post.shares));
         }
       }
     } catch (error) {
@@ -682,6 +725,38 @@ export function PostDetailModal({
     }
   }
 
+  useEffect(() => {
+    if (!sessionUserId) return;
+    const pid = String((post as any)._id ?? post.id ?? "");
+    if (!pid) return;
+    fetch("/api/bookmarks", { credentials: "include" })
+      .then((r) => r.json().catch(() => ({} as any)))
+      .then((d: any) => {
+        if (Array.isArray(d?.bookmarkedIds)) setIsBookmarked(d.bookmarkedIds.includes(pid));
+      })
+      .catch(() => {});
+  }, [(post as any)._id, post.id, sessionUserId]);
+
+  async function handleBookmark() {
+    const pid = String((post as any)._id ?? post.id ?? "");
+    if (!pid || !sessionUserId) return;
+    const next = !isBookmarked;
+    setIsBookmarked(next);
+    try {
+      const res = await fetch("/api/bookmarks", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId: pid, bookmarked: next }),
+      });
+      const d = await res.json().catch(() => ({} as any));
+      if (!res.ok) throw new Error(d?.message || "Bookmark failed");
+      if (typeof d.bookmarked === "boolean") setIsBookmarked(d.bookmarked);
+    } catch {
+      setIsBookmarked(!next);
+    }
+  }
+
   async function handleCommentReaction(commentId: string) {
     if (!sessionUserId) return;
 
@@ -703,7 +778,7 @@ export function PostDetailModal({
         return {
           ...comment,
           likedBy: nextLikedBy,
-          likes: Math.max(0, Number(comment.likes ?? 0) + (alreadyLiked ? -1 : 1)),
+          likes: clamp0(Number(comment.likes ?? 0) + (alreadyLiked ? -1 : 1)),
         };
       })
     );
@@ -747,12 +822,10 @@ export function PostDetailModal({
           return {
             ...comment,
             likedBy: nextLikedBy,
-            likes: Math.max(0, Number(comment.likes ?? 0) + (alreadyLiked ? 1 : -1)),
+            likes: clamp0(Number(comment.likes ?? 0) + (alreadyLiked ? 1 : -1)),
           };
         })
       );
-    } finally {
-      setCommentReactionMenuId(null);
     }
   }
 
@@ -876,7 +949,7 @@ export function PostDetailModal({
               likedBy: hasLiked
                 ? likedBy.filter((id) => id !== sessionUserId)
                 : [...new Set([...likedBy, sessionUserId])],
-              likes: Math.max(0, Number(entry.likes ?? 0) + (hasLiked ? -1 : 1)),
+              likes: clamp0(Number(entry.likes ?? 0) + (hasLiked ? -1 : 1)),
             };
           }),
         };
@@ -902,290 +975,176 @@ export function PostDetailModal({
     }
   }
 
-  function nextImage() {
-    setCurrentImageIndex((prev) => Math.min(totalImages - 1, prev + 1));
-  }
-
-  function prevImage() {
-    setCurrentImageIndex((prev) => Math.max(0, prev - 1));
-  }
-
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#f4f7f5]">
+    <div className={`fixed inset-0 z-50 flex flex-col ${ui.page} ${ui.text}`}>
       {/* =========================================================
           CREATOR HEADER
       ========================================================== */}
-      <div className="relative z-30 flex shrink-0 items-center gap-3 border-b border-[#e3ebe6] bg-white px-5 py-4 md:px-6">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e8efe8] text-sm font-semibold text-[#2f6b4f]">
-          {post.userImage ? (
-            <img
-              src={post.userImage}
-              alt={post.userName || "User"}
-              className="h-full w-full object-cover"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.src = "/shadow.png";
-              }}
-            />
-          ) : (
-            <img
-              src="/shadow.png"
-              alt={post.userName || "User"}
-              className="h-full w-full object-cover"
-            />
-          )}
-        </div>
+      <div
+        className={`relative z-[45] flex shrink-0 items-center gap-3 border-b px-3 py-3 ${ui.border} ${ui.page}`}
+      >
+        <Face
+          src={post.userImage}
+          alt={post.userName}
+          className="h-10 w-10"
+        />
 
         <div className="min-w-0 flex-1">
-          <p className="truncate font-semibold text-[#15271d]">
-            {post.userName}
-          </p>
+          {/* Name + dummy Follow / Add netizen buttons */}
+          <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-1">
+              <p className={`min-w-0 truncate font-semibold ${ui.text}`}>
+                {post.userName}
+              </p>
+              <VerifiedBadge />
+            </div>
+            <FollowButtons />
+          </div>
 
-          <p className="text-xs text-[#9aa79f]">
-            @{(post.userName || "user").toLowerCase().replace(/\s+/g, ".")}{" "}
-            · {formatRelativeTime(post.createdAt)}
+          <p className={`text-xs ${ui.muted}`}>
+            {(post as any).userHandle ? (post as any).userHandle : "no handle"} · {formatRelativeTime(post.createdAt)}
           </p>
         </div>
 
+        <PostMenu label="Post options" />
+
         <button
+          type="button"
           onClick={onClose}
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[#1a2c22] transition hover:bg-[#f2f6f3]"
+          className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${ui.text} transition ${ui.hover}`}
           aria-label="Close post"
         >
           <X size={20} />
         </button>
-        <button
-          type="button"
-          onClick={() => setMenuOpen(!menuOpen)}
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[#1a2c22] transition hover:bg-[#f2f6f3]"
-          aria-label="Post options"
-          aria-expanded={menuOpen}
-        >
-          <MoreHorizontal size={20} />
-        </button>
-
-        {menuOpen && (
-          <>
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center"
-              onClick={() => setMenuOpen(false)}
-              aria-hidden="true"
-            ></div>
-            <div className="absolute right-2 top-6 w-64 rounded-xl border border-[#dfe7e4] bg-white p-2 shadow-2xl z-50 animate-in fade-in zoom-in duration-200">
-              <div className="space-y-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-[#647994] hover:bg-[#f0f8f3] transition"
-                >
-                  <EyeOff size={16} className="shrink-0" />
-                  <span>Remove from feed</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-[#647994] hover:bg-[#f0f8f3] transition border-t border-[#e5ece7] pt-4"
-                >
-                  <Flag size={16} className="shrink-0" />
-                  <span>Report content</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-[#647994] hover:bg-[#f0f8f3] transition border-t border-[#e5ece7] pt-4"
-                >
-                  <ThumbsUp size={16} className="shrink-0" />
-                  <span>See more of this</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-[#647994] hover:bg-[#f0f8f3] transition border-t border-[#e5ece7] pt-4"
-                >
-                  <Bookmark size={16} className="shrink-0" />
-                  <span>Save</span>
-                </button>
-              </div>
-            </div>
-          </>
-        )}
       </div>
 
-      {/* Reshare indicator */}
+      {/* Sharer description - above reshare indicator */}
+      {post.reshareOf && post.content?.trim() ? (
+        <div className={`shrink-0 px-3 py-4 ${ui.page}`}>
+          <p className={`whitespace-pre-wrap break-words text-[15px] leading-[1.55] ${ui.text}`}>
+            {post.content}
+          </p>
+        </div>
+      ) : null}
+
+      {/* Reshare indicator - opens ORIGINAL post */}
       {post.reshareOf && post.reshareData && (
-        <button
-          type="button"
-          onClick={() => onSelectPost?.(post)}
-          className="w-full flex items-center justify-between gap-2 rounded-lg border-b border-[#e3ebe6] bg-[#f7faf8] px-3 py-3 text-sm text-[#5f7073] transition hover:bg-[#e7f7ed]"
-        >
-          <div className="flex items-center gap-2">
-            <svg className="h-4 w-4 text-[#1c9d57]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17 1l4 4-4 4" />
-              <path d="M3 11V9a4 4 0 014-4h14" />
-              <path d="M7 23l-4-4 4-4" />
-              <path d="M21 13v2a4 4 0 01-4 4H3" />
-            </svg>
-            <span className="text-sm text-[#5f7073]">
-              <b className="text-[#1c9d57]">{post.userName}</b> reshared a post by{" "}
-              <b className="text-[#1c9d57]">{post.reshareData.originalUserName || "Unknown user"}</b>
+        <div className={`shrink-0 border-b px-3 py-2 ${ui.border} ${ui.page}`}>
+          <button
+            type="button"
+            onClick={async () => { const originalId = post.reshareData?.originalPostId || post.reshareOf; if (!originalId) return; try { const res = await fetch("/api/posts/" + originalId, { cache: "no-store" }); const data = await res.json(); if (res.ok && data?.post && onSelectPost) onSelectPost(data.post); } catch {} }}
+            aria-label="Open original post"
+            className="flex h-10 w-full items-center gap-2.5 rounded-full bg-[#e6f4ec] p-1 pr-3 text-left text-xs text-[#64776b] transition hover:bg-[#dcefe3] dark:bg-[#143a26] dark:text-[#9bb0a8] dark:hover:bg-[#1a4330]"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#6fb08a] text-white dark:bg-[#1f7a46]">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 1l4 4-4 4" />
+                <path d="M3 11V9a4 4 0 014-4h14" />
+                <path d="M7 23l-4-4 4-4" />
+                <path d="M21 13v2a4 4 0 01-4 4H3" />
+              </svg>
             </span>
-          </div>
-          <svg className="h-4 w-4 shrink-0 text-[#1c9d57]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 5l6 6-6 6" />
-          </svg>
-        </button>
+
+            <span className="min-w-0 flex-1 truncate">
+              <b className="font-semibold text-[#168b45] dark:text-[#7ee0b0]">{post.userName}</b>{" "}
+              reshared a post by{" "}
+              <b className="font-semibold text-[#168b45] dark:text-[#7ee0b0]">
+                {post.reshareData.originalUserName || "Unknown user"}
+              </b>
+            </span>
+
+            <svg className="h-4 w-4 shrink-0 text-[#168b45] dark:text-[#7ee0b0]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 5l6 6-6 6" />
+            </svg>
+          </button>
+        </div>
       )}
 
       {/* =========================================================
           MAIN SCROLL AREA
       ========================================================== */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-21.5">
-        {/* Description: show reshared post content if it's a reshare, otherwise own content */}
-        {(post.reshareOf && post.reshareData?.originalContent?.trim()) || post.content?.trim() ? (
-          <div className="shrink-0 border-b border-[#e3ebe6] bg-white px-5 py-4 md:px-6">
-            <p className="whitespace-pre-wrap text-[16px] font-medium leading-7 text-[#15271d]">
-              {post.reshareOf && post.reshareData?.originalContent?.trim()
-                ? post.reshareData.originalContent
-                : post.content}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-24">
+        {/* Original content - below indicator; own content if not reshare */}
+        {post.reshareOf ? (
+          post.reshareData?.originalContent?.trim() ? (
+            <div className={`shrink-0 px-3 py-4 ${ui.page}`}>
+              <p className={`whitespace-pre-wrap break-words text-[15px] leading-[1.55] ${ui.text}`}>
+                {post.reshareData.originalContent}
+              </p>
+            </div>
+          ) : null
+        ) : post.content?.trim() ? (
+          <div className={`shrink-0 px-3 py-4 ${ui.page}`}>
+            <p className={`whitespace-pre-wrap break-words text-[15px] leading-[1.55] ${ui.text}`}>
+              {post.content}
             </p>
           </div>
         ) : null}
 
         {/* =======================================================
-            IMAGES: swipe, buttons, tap for full screen
+            IMAGES: Facebook-style grid, edge to edge, tap for full screen
         ======================================================== */}
         {totalImages > 0 && (
-          <div className="shrink-0 bg-white px-3 py-3">
+          <div className={`shrink-0 ${ui.page}`}>
             <PostImageGrid images={imageList} onImageClick={(i) => setViewerIndex(i)} />
-          </div>
-        )}
-
-        {/* legacy swipe detail – hidden now that grid is primary; keep for fallback if needed */}
-        {false && totalImages > 0 && (
-          <div className="relative shrink-0 bg-black">
-            <div
-              className="touch-pan-y select-none overflow-hidden"
-              {...gallerySwipe.handlers}
-              onClick={() => {
-                if (!gallerySwipe.wasDrag()) setViewerIndex(currentImageIndex);
-              }}
-            >
-              <div className="flex" style={gallerySwipe.trackStyle}>
-                {imageList.map((src, idx) => (
-                  <div
-                    key={`${idx}-slide`}
-                    className="flex h-[52dvh] w-full shrink-0 items-center justify-center bg-black md:h-[60dvh]"
-                  >
-                    <img
-                      src={src}
-                      alt={`Post image ${idx + 1}`}
-                      draggable={false}
-                      className="h-full w-full cursor-zoom-in object-contain"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {totalImages > 1 && (
-              <>
-                {/* COUNTER */}
-                <span className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/55 px-2.5 py-1 text-xs font-semibold text-white">
-                  {currentImageIndex + 1} / {totalImages}
-                </span>
-
-                {/* DOTS */}
-                <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center gap-2">
-                  {imageList.map((_, idx) => (
-                    <div
-                      key={`${idx}-image-dot`}
-                      className={`h-1 rounded-full transition-all ${
-                        idx === currentImageIndex
-                          ? "w-8 bg-white"
-                          : "w-1 bg-white/50"
-                      }`}
-                    />
-                  ))}
-                </div>
-
-                {/* PREVIOUS */}
-                {currentImageIndex > 0 && (
-                  <button
-                    onClick={prevImage}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/35 p-2.5 text-white backdrop-blur-sm transition hover:bg-black/55"
-                    aria-label="Previous image"
-                  >
-                    <ChevronLeft size={24} />
-                  </button>
-                )}
-
-                {/* NEXT */}
-                {currentImageIndex < totalImages - 1 && (
-                  <button
-                    onClick={nextImage}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/35 p-2.5 text-white backdrop-blur-sm transition hover:bg-black/55"
-                    aria-label="Next image"
-                  >
-                    <ChevronRight size={24} />
-                  </button>
-                )}
-              </>
-            )}
           </div>
         )}
 
         {/* =======================================================
             REACTIONS SUMMARY + ACTION BAR + TOP REACTION
         ======================================================== */}
-        <div className="shrink-0 border-b border-[#e3ebe6] bg-white">
-          {/* Summary */}
-          <div className="mx-3 mt-3 flex items-center justify-between gap-2 border-b border-[#edf2ee] pb-2.5 text-xs text-[#718078]">
-            <span className="flex items-center gap-1.5">
-              {hasReaction && (
-                <Heart size={13} className="fill-[#f43f68] text-[#f43f68]" />
-              )}
-              {reactionCountDisplay} {reactionCountDisplay === 1 ? "reaction" : "reactions"}
+        <div className={`shrink-0 border-b ${ui.border} ${ui.page}`}>
+          {/* All reactions = highlights + emoji reactions, plain text only */}
+          <div
+            className={`mx-3 mt-3 flex items-center justify-between gap-2 border-b pb-2.5 text-xs ${ui.border} ${ui.muted}`}
+          >
+            <span>
+              {allReactions > 0 ? `All reactions · ${allReactions}` : "No reactions yet"}
             </span>
 
-            <span className="truncate text-right">
-              {clamp0(commentsList.length)} comments · {clamp0(shareCount)} shares
-            </span>
+            {(commentsTotal > 0 || sharesTotal > 0) && (
+              <span className="truncate text-right">
+                {commentsTotal > 0 &&
+                  `${commentsTotal} ${commentsTotal === 1 ? "comment" : "comments"}`}
+                {commentsTotal > 0 && sharesTotal > 0 && " · "}
+                {sharesTotal > 0 &&
+                  `${sharesTotal} ${sharesTotal === 1 ? "share" : "shares"}`}
+              </span>
+            )}
           </div>
 
           {/* Action bar */}
           <div className="px-3 py-2">
             <PostActionBar
               highlighted={hasHighlighted}
-              highlightCount={highlightCount}
-              commentCount={commentsList.length}
-              viewCount={openedCount}
-              onAdd={() => setShowReactions((value) => !value)}
+              highlightCount={clamp0(highlightCount)}
+              commentCount={commentsTotal}
+              viewCount={clamp0(openedCount)}
+              bookmarked={isBookmarked}
               onHighlight={handleHighlight}
+              onHighlightLongPress={() => setShowReactions((v) => !v)}
               onComment={scrollToDiscussion}
               onViews={() => {}}
               onShare={() => setShareModalOpen(true)}
+              onBookmark={handleBookmark}
               showCounts={true}
             />
           </div>
 
           {/* Reaction picker */}
           {showReactions && (
-            <div className="mx-3 mb-2 flex max-w-full flex-wrap items-center gap-1.5 rounded-2xl border border-[#dcebe1] bg-white p-2 shadow-[0_6px_20px_rgba(15,39,28,0.10)]">
+            <div
+              className={`mx-3 mb-2 flex max-w-full flex-wrap items-center gap-1.5 rounded-2xl border p-2 shadow-[0_6px_20px_rgba(15,39,28,0.18)] ${ui.panel}`}
+            >
               {reactionOptions.map((option) => (
                 <button
                   key={option.label}
                   type="button"
                   onClick={() => handleReactionSelect(option.emoji)}
-                  className={`flex h-9 w-9 items-center justify-center rounded-full text-lg transition hover:scale-110 hover:bg-[#eef8f1] ${
-                    myReaction === option.emoji ? "bg-[#e3f4e9]" : ""
+                  className={`flex h-9 w-9 items-center justify-center rounded-full text-lg transition hover:scale-110 ${ui.hover} ${
+                    myReaction === option.emoji
+                      ? "bg-[#e3f4e9] dark:bg-[#143a26]"
+                      : ""
                   }`}
                   aria-label={option.label}
                   title={option.label}
@@ -1198,14 +1157,12 @@ export function PostDetailModal({
 
           {/* Top reaction + scroll hint */}
           <div className="flex items-center justify-between gap-3 px-3 pb-3 pt-1">
-            <span className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-xs text-[#718078]">
+            <span className={`flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-xs ${ui.muted}`}>
               {topReaction && (
                 <>
                   <span className="text-base leading-none">{topReaction}</span>
                   <span>top reaction</span>
-                  {myReaction && (
-                    <span className="text-[#9aa79f]">· you {myReaction}</span>
-                  )}
+                  {myReaction && <span>· you {myReaction}</span>}
                 </>
               )}
             </span>
@@ -1213,7 +1170,7 @@ export function PostDetailModal({
             <button
               type="button"
               onClick={scrollToDiscussion}
-              className="flex shrink-0 items-center gap-1 text-xs font-semibold text-[#168b45] transition active:text-[#0c6831]"
+              className={`flex shrink-0 items-center gap-1 text-xs font-semibold transition ${ui.accent}`}
             >
               Scroll to see discussion
               <ChevronDown size={14} />
@@ -1222,151 +1179,219 @@ export function PostDetailModal({
         </div>
 
         {/* =======================================================
-            DISCUSSION
+            DISCUSSION – Facebook-style, full width
         ======================================================== */}
-        <div ref={discussionRef} className="scroll-mt-2 bg-white px-5 py-5 md:px-6">
-          <div className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-[#9aa79f]">
-              Comments ({commentsList.length}) · Replies ({totalReplyCount})
+        <div ref={discussionRef} className={`scroll-mt-2 py-4 ${ui.page}`}>
+          {commentsTotal > 0 && (
+            <h3 className={`px-3 pb-3 text-sm font-semibold ${ui.text}`}>
+              Comments{" "}
+              <span className={`font-normal ${ui.muted}`}>
+                · {commentsTotal}
+                {totalReplyCount > 0
+                  ? ` · ${totalReplyCount} ${totalReplyCount === 1 ? "reply" : "replies"}`
+                  : ""}
+              </span>
             </h3>
+          )}
 
-            {commentsList.length === 0 ? (
-              <p className="py-4 text-sm text-[#9aa79f]">
-                No comments yet
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {commentsList.map((comment) => {
-                  const commentId = String(comment._id ?? "");
-                  const replyCount = countReplies(comment);
-                  const isCommentLiked =
-                    !!sessionUserId &&
-                    Array.isArray(comment.likedBy) &&
-                    comment.likedBy.includes(sessionUserId);
+          {commentsTotal === 0 ? (
+            <p className={`px-3 py-4 text-sm ${ui.muted}`}>
+              No comments yet. Be the first to comment.
+            </p>
+          ) : (
+            <div className="space-y-5">
+              {commentsList.map((comment, commentIndex) => {
+                const commentId = String(comment._id ?? "");
+                const replies = Array.isArray(comment.replies) ? comment.replies : [];
+                const replyTotal = replies.length;
+                const firstReply = replies[0];
+                const commentLikes = clamp0(comment.likes);
+                const firstReplyLikes = clamp0(firstReply?.likes);
+                const isCommentLiked =
+                  !!sessionUserId &&
+                  Array.isArray(comment.likedBy) &&
+                  comment.likedBy.includes(sessionUserId);
 
-                  return (
-                    <div key={commentId || `comment-${Math.random()}`} className="rounded-xl bg-[#f5f7f5] p-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e8efe8] text-xs font-semibold text-[#2f6b4f]">
-                          {comment.userImage ? (
-                            <img
-                              src={comment.userImage}
-                              alt={comment.userName || "User"}
-                              className="h-full w-full object-cover"
-                              onError={(e) => { (e.target as HTMLImageElement).src = "/shadow.png"; }}
-                            />
-                          ) : (
-                            <img src="/shadow.png" alt={comment.userName || "User"} className="h-full w-full object-cover" />
-                          )}
+                return (
+                  <div
+                    key={commentId || `comment-${commentIndex}`}
+                    className="flex items-start gap-2 px-3"
+                  >
+                    <Face
+                      src={comment.userImage}
+                      alt={comment.userName}
+                      className="h-9 w-9"
+                    />
 
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold text-[#15271d]">
+                    <div className="min-w-0 flex-1">
+                      {/* Bubble */}
+                      <div className="relative inline-block max-w-full">
+                        <div className={`rounded-2xl px-3 py-2 ${ui.bubble}`}>
+                          <p className={`flex items-center gap-1 text-[13px] font-semibold ${ui.text}`}>
                             {comment.userName}
+                            <VerifiedBadge size={13} />
                           </p>
-
-                          <p className="text-xs text-[#9aa79f]">
-                            {formatRelativeTime(comment.createdAt)}
+                          <p className={`whitespace-pre-wrap break-words text-[14px] leading-5 ${ui.text}`}>
+                            {comment.content}
                           </p>
                         </div>
+
+                        {commentLikes > 0 && (
+                          <span
+                            className={`absolute -bottom-2.5 right-2 flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] shadow-sm ${ui.border} ${ui.page} ${ui.muted}`}
+                          >
+                            <Heart size={11} className="fill-[#f43f68] text-[#f43f68]" />
+                            {commentLikes}
+                          </span>
+                        )}
                       </div>
 
-                      <p className="mt-2 text-sm leading-5 text-[#15271d]">
-                        {comment.content}
-                      </p>
-
-                      <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-[#5b6b62]">
-                        <div className="relative">
-                          <button
-                            type="button"
-                            onClick={() => setCommentReactionMenuId(commentId === commentReactionMenuId ? null : commentId)}
-                            className="flex h-8 w-8 items-center justify-center rounded-full border border-[#dfe9df] bg-white text-[#1c9d57] transition hover:bg-[#eaf6ee]"
-                            aria-label="Add comment reaction"
-                          >
-                            <Plus className="h-4 w-4" strokeWidth={2.2} />
-                          </button>
-
-                          {commentReactionMenuId === commentId && (
-                            <div className="absolute bottom-10 left-0 z-20 flex gap-2 rounded-full border border-[#e4ecdf] bg-white p-2 shadow-[0_10px_30px_rgba(15,39,28,0.12)]">
-                              {reactionOptions.map((option) => (
-                                <button
-                                  key={option.label}
-                                  type="button"
-                                  onClick={() => handleCommentReaction(commentId)}
-                                  className="flex h-8 w-8 items-center justify-center rounded-full text-lg transition hover:scale-110 hover:bg-[#f2f7f3]"
-                                  aria-label={option.label}
-                                  title={option.label}
-                                >
-                                  {option.emoji}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                      {/* Time · Like · Reply · menu */}
+                      <div
+                        className={`flex items-center gap-4 px-3 text-xs font-semibold ${ui.muted} ${
+                          commentLikes > 0 ? "mt-3" : "mt-1"
+                        }`}
+                      >
+                        <span className="font-normal">
+                          {formatRelativeTime(comment.createdAt)}
+                        </span>
 
                         <button
                           type="button"
                           onClick={() => handleCommentReaction(commentId)}
-                          className={`flex items-center gap-1 rounded-full px-2 py-1 font-medium ${
-                            isCommentLiked ? "bg-[#fff1f3] text-[#df4059]" : "bg-white text-[#5b6b62]"
-                          }`}
+                          className={isCommentLiked ? "text-[#df4059]" : ""}
                         >
-                          <Heart className={`h-3.5 w-3.5 ${isCommentLiked ? "fill-current" : ""}`} />
-                          {Number(comment.likes ?? 0)} reactions
+                          Like
                         </button>
 
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReplyTarget({
+                              commentId,
+                              userName: comment.userName || "this user",
+                            });
+                            setReplyModalOpen(true);
+                          }}
+                        >
+                          Reply
+                        </button>
+
+                        <span className="ml-auto">
+                          <PostMenu
+                            size={16}
+                            label="Comment options"
+                            buttonClassName="grid h-7 w-7 place-items-center rounded-full text-[#718078] transition hover:bg-[#f2f6f3] dark:text-[#9bb0a8] dark:hover:bg-[#1f332b]"
+                          />
+                        </span>
+                      </div>
+
+                      {/* Only ONE reply is shown in full, the rest live in the replies modal */}
+                      {firstReply && (
+                        <div className="mt-3 flex items-start gap-2">
+                          <Face
+                            src={firstReply.userImage}
+                            alt={firstReply.userName}
+                            className="h-7 w-7"
+                          />
+
+                          <div className="min-w-0 flex-1">
+                            <div className="relative inline-block max-w-full">
+                              <div className={`rounded-2xl px-3 py-2 ${ui.bubble}`}>
+                                <p className={`flex items-center gap-1 text-[12px] font-semibold ${ui.text}`}>
+                                  {firstReply.userName}
+                                  <VerifiedBadge size={12} />
+                                </p>
+                                <p className={`whitespace-pre-wrap break-words text-[13px] leading-5 ${ui.text}`}>
+                                  {firstReply.replyTo?.userName && (
+                                    <span className={`mr-1 font-semibold ${ui.accent}`}>
+                                      {firstReply.replyTo.userName}
+                                    </span>
+                                  )}
+                                  {firstReply.content}
+                                </p>
+                              </div>
+
+                              {firstReplyLikes > 0 && (
+                                <span
+                                  className={`absolute -bottom-2.5 right-2 flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] shadow-sm ${ui.border} ${ui.page} ${ui.muted}`}
+                                >
+                                  <Heart size={10} className="fill-[#f43f68] text-[#f43f68]" />
+                                  {firstReplyLikes}
+                                </span>
+                              )}
+                            </div>
+
+                            <div
+                              className={`flex items-center gap-4 px-3 text-xs font-semibold ${ui.muted} ${
+                                firstReplyLikes > 0 ? "mt-3" : "mt-1"
+                              }`}
+                            >
+                              <span className="font-normal">
+                                {formatRelativeTime(firstReply.createdAt)}
+                              </span>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  firstReply._id && handleLikeReply(String(firstReply._id))
+                                }
+                                className={
+                                  !!sessionUserId &&
+                                  Array.isArray(firstReply.likedBy) &&
+                                  firstReply.likedBy.includes(sessionUserId)
+                                    ? "text-[#df4059]"
+                                    : ""
+                                }
+                              >
+                                Like
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const name = firstReply.userName || "this user";
+                                  setReplyTarget({ commentId, userName: name });
+                                  setReplyingToUserName(name);
+                                  setReplyText(`@${name} `);
+                                  setReplyModalOpen(true);
+                                }}
+                              >
+                                Reply
+                              </button>
+
+                              <span className="ml-auto">
+                                <PostMenu
+                                  size={14}
+                                  label="Reply options"
+                                  buttonClassName="grid h-6 w-6 place-items-center rounded-full text-[#718078] transition hover:bg-[#f2f6f3] dark:text-[#9bb0a8] dark:hover:bg-[#1f332b]"
+                                />
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Reply count + see all replies (opens the replies modal for this comment) */}
+                      {replyTotal > 0 && (
                         <button
                           type="button"
                           onClick={() => {
                             setRepliesTarget(comment);
                             setRepliesModalOpen(true);
                           }}
-                          className="rounded-full bg-white px-2 py-1 font-medium text-[#1c9d57]"
+                          className={`mt-3 flex items-center gap-2 text-xs font-semibold ${ui.accent}`}
                         >
-                          {replyCount} {replyCount === 1 ? "reply" : "replies"}
+                          <span className="h-px w-6 bg-current opacity-50" />
+                          See all {replyTotal} {replyTotal === 1 ? "reply" : "replies"}
                         </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setReplyTarget({ commentId, userName: comment.userName || "this user" });
-                            setReplyModalOpen(true);
-                          }}
-                          className="rounded-full bg-white px-2 py-1 font-medium text-[#1c9d57]"
-                        >
-                          Reply
-                        </button>
-                      </div>
-
-                      {Array.isArray(comment.replies) && comment.replies.length > 0 && (
-                        <div className="mt-3 space-y-2 border-l border-[#dfe9df] pl-3">
-                          {comment.replies.map((reply) => (
-                            <div key={String(reply._id ?? `${commentId}-reply`)} className="rounded-lg bg-white/70 p-2">
-                              <div className="flex items-center gap-2">
-                                <div className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e8efe8] text-[10px] font-semibold text-[#2f6b4f]">
-                                  {reply.userImage ? (
-                                    <img src={reply.userImage} alt={reply.userName || "User"} className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = "/shadow.png"; }} />
-                                  ) : (
-                                    <img src="/shadow.png" alt={reply.userName || "User"} className="h-full w-full object-cover" />
-                                  )}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-xs font-semibold text-[#15271d]">{reply.userName}</p>
-                                  <p className="text-[10px] text-[#9aa79f]">{formatRelativeTime(reply.createdAt)}</p>
-                                </div>
-                              </div>
-                              <p className="mt-1 text-xs leading-5 text-[#15271d]">{reply.content}</p>
-                            </div>
-                          ))}
-                        </div>
                       )}
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1374,12 +1399,16 @@ export function PostDetailModal({
           FIXED COMMENT INPUT
           LIKE A BOTTOM NAVIGATION BAR
       ========================================================== */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#dfe9e2] bg-white/95 px-3 py-3 backdrop-blur-md md:px-6">
+      <div
+        className={`fixed inset-x-0 bottom-0 z-40 border-t px-3 py-3 backdrop-blur-md md:px-6 ${ui.border} bg-white/95 dark:bg-[#101a17]/95`}
+      >
         <form
           onSubmit={handleCommentSubmit}
           className="mx-auto flex w-full max-w-5xl items-center gap-2"
         >
-          <div className="flex min-w-0 flex-1 items-center rounded-2xl border border-[#dce8df] bg-[#f7faf8] px-4 focus-within:border-[#1c9d57] focus-within:ring-2 focus-within:ring-[#1c9d57]/20">
+          <div
+            className={`flex min-w-0 flex-1 items-center rounded-full px-4 focus-within:ring-2 focus-within:ring-[#1c9d57]/30 ${ui.bubble}`}
+          >
             <input
               type="text"
               value={newComment}
@@ -1389,7 +1418,7 @@ export function PostDetailModal({
                   ? "Write a comment..."
                   : "Sign in to comment..."
               }
-              className="min-w-0 flex-1 bg-transparent py-3 text-sm text-[#15271d] outline-none placeholder:text-[#9aa79f]"
+              className={`min-w-0 flex-1 bg-transparent py-3 text-sm outline-none placeholder:text-[#9aa79f] ${ui.text}`}
               disabled={!sessionUserId || isSubmittingComment}
             />
           </div>
@@ -1401,7 +1430,7 @@ export function PostDetailModal({
               isSubmittingComment ||
               !sessionUserId
             }
-            className="shrink-0 rounded-2xl bg-[#1c9d57] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#138647] disabled:cursor-not-allowed disabled:bg-[#9aa79f]"
+            className="shrink-0 rounded-full bg-[#1c9d57] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#138647] disabled:cursor-not-allowed disabled:bg-[#9aa79f] dark:disabled:bg-[#233d32]"
           >
             {isSubmittingComment ? "..." : "Post"}
           </button>
@@ -1410,9 +1439,9 @@ export function PostDetailModal({
 
       {replyModalOpen && replyTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white p-4 shadow-2xl">
+          <div className={`w-full max-w-md rounded-3xl border p-4 shadow-2xl ${ui.panel}`}>
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-[#15271d]">
+              <h3 className={`text-base font-semibold ${ui.text}`}>
                 Reply to {replyTarget.userName}
               </h3>
               <button
@@ -1421,8 +1450,9 @@ export function PostDetailModal({
                   setReplyModalOpen(false);
                   setReplyTarget(null);
                   setReplyText("");
+                  setReplyingToUserName(null);
                 }}
-                className="rounded-full bg-[#f1f5f2] px-2 py-1 text-xs text-[#5f7073]"
+                className={`rounded-full px-3 py-1 text-xs ${ui.bubble} ${ui.muted}`}
               >
                 Close
               </button>
@@ -1433,7 +1463,7 @@ export function PostDetailModal({
               onChange={(event) => setReplyText(event.target.value)}
               rows={4}
               placeholder="Write a reply..."
-              className="w-full rounded-2xl border border-[#dfe9df] bg-[#f8faf8] px-3 py-2 text-sm text-[#111827] outline-none placeholder:text-[#7b867d]"
+              className={`w-full rounded-2xl px-3 py-2 text-sm outline-none placeholder:text-[#9aa79f] ${ui.bubble} ${ui.text}`}
             />
 
             <div className="mt-3 flex justify-end gap-2">
@@ -1443,8 +1473,9 @@ export function PostDetailModal({
                   setReplyModalOpen(false);
                   setReplyTarget(null);
                   setReplyText("");
+                  setReplyingToUserName(null);
                 }}
-                className="rounded-full border border-[#dfe9df] px-3 py-1.5 text-sm text-[#1d2c23]"
+                className={`rounded-full border px-3 py-1.5 text-sm ${ui.border} ${ui.text}`}
               >
                 Cancel
               </button>

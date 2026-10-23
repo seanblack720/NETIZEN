@@ -1,7 +1,7 @@
 // app/api/register/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 
+import { auth } from "@/lib/auth";
 import { connectMongoose, User } from "@/lib/mongoose";
 
 const MIN_AGE = 13;
@@ -131,27 +131,41 @@ export async function POST(request: NextRequest) {
       return fail("That username is already taken", 409);
     }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
     const now = new Date();
 
-    const user = await User.create({
-      name,
-      username,
-      userHandle,
-      email,
-      phone,
-      birthDate,
-      age,
-      gender,
-      country,
-      interests,
-      uiMode,
-      password: hashedPassword,
-      image: rawImage,
-      avatar: "/avatar-2.png",
-      createdAt: now,
-      updatedAt: now,
+    // Create the auth identity via Better Auth so sign-in can find the user
+    await auth.api.signUpEmail({
+      body: { email, password, name },
     });
+
+    await connectMongoose();
+
+    // Add the extra profile fields to the same user document
+    const user = await User.findOneAndUpdate(
+      { email },
+      {
+        $set: {
+          username,
+          userHandle,
+          phone,
+          birthDate,
+          age,
+          gender,
+          country,
+          interests,
+          uiMode,
+          ...(rawImage ? { image: rawImage } : {}),
+          avatar: "/avatar-2.png",
+          createdAt: now,
+          updatedAt: now,
+        },
+      },
+      { new: true },
+    );
+
+    if (!user) {
+      return fail("Failed to create account", 500);
+    }
 
     return NextResponse.json(
       {

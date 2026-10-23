@@ -1,0 +1,215 @@
+"use client";
+
+import { useEffect, useState, type SVGProps } from "react";
+import { useRouter } from "next/navigation";
+import { type NavId } from "@/lib/netizen-data";
+import { UserRound, Menu } from "lucide-react";
+
+function UserIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M20 21a8 8 0 0 0-16 0" />
+      <circle cx="12" cy="8" r="4" />
+    </svg>
+  );
+}
+
+function SearchIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="M16 16L21 21" />
+    </svg>
+  );
+}
+
+function MenuIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M4 7h16" />
+      <path d="M4 12h16" />
+      <path d="M4 17h16" />
+    </svg>
+  );
+}
+
+/**
+ * Tracks whether the viewport is at or below `breakpoint`.
+ * Defaults to `false` on the server / first render to avoid
+ * hydration mismatches, then syncs on mount and on resize.
+ */
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${breakpoint}px)`);
+
+    const update = () => setIsMobile(mql.matches);
+    update();
+
+    mql.addEventListener("change", update);
+    return () => mql.removeEventListener("change", update);
+  }, [breakpoint]);
+
+  return isMobile;
+}
+
+export function Header({
+  onNavigate,
+}: {
+  active: NavId;
+  onNavigate: (id: NavId) => void;
+}) {
+  const isMobile = useIsMobile();
+  const router = useRouter();
+  const [isSignedIn, setIsSignedIn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/auth/get-session", { credentials: "include" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!cancelled) setIsSignedIn(Boolean(data?.user?.id));
+      })
+      .catch(() => {
+        if (!cancelled) setIsSignedIn(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function handleProfile() {
+    if (isSignedIn) {
+      onNavigate("profile");
+      return;
+    }
+
+    router.push("/login");
+  }
+
+  return (
+    <header
+      className={`flex shrink-0 items-center gap-5 border-b border-[#dfe7e4] bg-white px-7 ${
+        isMobile ? "h-20 gap-3 px-[15px]" : "h-[74px]"
+      }`}
+    >
+      {isMobile ? (
+        // ---- Mobile layout ----
+        <div className="flex w-full flex-row items-center justify-between">
+          <button
+            className="flex items-center gap-2.5 border-0 bg-none pt-0 text-[25px] tracking-[-0.04em] text-[#162022]"
+            onClick={() => onNavigate("feed")}
+          >
+            <img
+              src="/netgreen.png"
+              alt="Netizen logo"
+              className="h-8 w-8 rounded-lg object-cover"
+            />
+            <b className="pt-1">NETIZEN</b>
+          </button>
+
+          <div className="right-0 flex flex-row items-center space-x-1">
+            <button
+              type="button"
+              className="flex h-11 items-center gap-2 rounded-xl bg-[#e7f7ed] px-3 text-sm font-semibold text-[#07843b] transition active:scale-95"
+              aria-label={isSignedIn ? "Open profile" : "Log in"}
+              onClick={handleProfile}
+            >
+              <UserRound className="h-5 w-5" aria-hidden="true" />
+              <span>{isSignedIn ? "Profile" : "Log in"}</span>
+            </button>
+            <div className="hidden items-center justify-center rounded-xl bg-gray-100">
+              <button
+                className="flex h-11 w-11 items-center justify-center rounded-xl bg-gray-300 text-[#5f7073]"
+                aria-label="Profile"
+                onClick={handleProfile}
+              >
+                <UserRound className="h-6 w-6" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="items-center justify-center rounded-xl bg-gray-100">
+              <button
+                className="flex h-11 w-11 items-center justify-center rounded-xl bg-gray-300 text-[#5f7073]"
+                aria-label="Settings"
+                onClick={() => router.push("/settings")}
+              >
+                <Menu className="h-6 w-6" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        // ---- Desktop layout ----
+        <>
+          <button
+            className="flex items-center gap-2.5 border-0 bg-none text-xl tracking-[-0.04em] text-[#162022]"
+            onClick={() => onNavigate("feed")}
+          >
+            <img
+              src="/netgreen.png"
+              alt="Netizen logo"
+              className="h-8 w-8 rounded-lg object-cover"
+            />
+            <b>NETIZEN</b>
+          </button>
+
+          <label className="ml-auto flex h-[42px] w-[min(525px,45vw)] items-center gap-2.5 rounded-3xl border border-[#dfe7e4] bg-[#f3f7f5] px-[15px] text-[#5f7073]">
+            <SearchIcon className="h-4 w-4" aria-hidden="true" />
+            <input
+              aria-label="Search Netizen"
+              placeholder="Search Netizen..."
+              onFocus={() => onNavigate("search")}
+              className="w-full border-0 bg-transparent text-[#162022] outline-none"
+            />
+          </label>
+
+          <button
+            className="grid place-items-center border-0 bg-none text-[#5f7073]"
+            aria-label={isSignedIn ? "Profile" : "Log in"}
+            title={isSignedIn ? "Profile" : "You are not logged in — log in"}
+            onClick={handleProfile}
+          >
+            <UserIcon className="h-[22px] w-[22px]" aria-hidden="true" />
+          </button>
+
+          <button
+            className="grid place-items-center border-0 bg-none text-[#5f7073]"
+            aria-label="Settings"
+            title="Settings"
+            onClick={() => router.push("/settings")}
+          >
+            <MenuIcon className="h-[22px] w-[22px]" aria-hidden="true" />
+          </button>
+        </>
+      )}
+    </header>
+  );
+}

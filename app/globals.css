@@ -1,0 +1,135 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Light tokens */
+:root {
+  color-scheme: light;
+  --bg: #f3f7f5;
+  --bg-soft: #f5f7f4;
+  --surface: #ffffff;
+  --surface-2: #f1f5f2;
+  --border: #dfe7e4;
+  --border-2: #eef3f0;
+  --text: #162022;
+  --text-strong: #15271d;
+  --muted: #5f7073;
+  --muted-2: #68776f;
+}
+
+/* Dark tokens — applied via .dark class + system fallback */
+.dark {
+  color-scheme: dark;
+  --bg: #0a1210;
+  --bg-soft: #0f1c18;
+  --surface: #18231f;
+  --surface-2: #1f332b;
+  --border: #23473a;
+  --border-2: #1e3a2f;
+  --text: #e6ece9;
+  --text-strong: #f1f7f2;
+  --muted: #9bb0a8;
+  --muted-2: #8aa39b;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Smooth theme transition (respects motion preference) */
+@media (prefers-reduced-motion: no-preference) {
+  html,
+  body,
+  * {
+    scrollbar-color: var(--border) transparent;
+  }
+}
+
+/* Scrollbar for dark */
+.dark ::-webkit-scrollbar-thumb {
+  background: #2a4a3e;
+}
+
+/* Global dark overrides for common Tailwind arbitrary colours
+   so legacy hardcoded light classes still look decent in dark
+   without touching every file. Component-level dark: classes
+   below take precedence when present. */
+.dark .bg-white {
+  background-color: var(--surface) !important;
+}
+.dark .bg-\[\#f3f7f5\] {
+  background-color: var(--bg) !important;
+}
+.dark .bg-\[\#f5f7f4\] {
+  background-color: var(--bg-soft) !important;
+}
+.dark .bg-\[\#f1f5f2\] {
+  background-color: #1a2e26 !important;
+}
+.dark .bg-\[\#e7f7ed\] {
+  background-color: #143a26 !important;
+}
+.dark .bg-\[\#eef7f1\] {
+  background-color: #143a26 !important;
+}
+.dark .border-\[\#dfe7e4\] {
+  border-color: var(--border) !important;
+}
+.dark .border-\[\#dfe9e2\] {
+  border-color: var(--border) !important;
+}
+.dark .border-\[\#eef3f0\],
+.dark .border-\[\#eef2ef\],
+.dark .border-\[\#edf2ee\] {
+  border-color: var(--border-2) !important;
+}
+.dark .border-\[\#e8eeea\] {
+  border-color: var(--border-2) !important;
+}
+.dark .bg-\[\#e8f5ee\] {
+  background-color: #143a26 !important;
+}
+.dark .bg-\[\#76b69a\] {
+  background-color: #1f6b4a !important;
+}
+.dark .text-\[\#162022\],
+.dark .text-\[\#15271d\],
+.dark .text-\[\#111827\],
+.dark .text-\[\#17251e\] {
+  color: var(--text-strong) !important;
+}
+.dark .text-\[\#5f7073\],
+.dark .text-\[\#68776f\],
+.dark .text-\[\#5b6b62\],
+.dark .text-\[\#273a2f\],
+.dark .text-\[\#647994\],
+.dark .text-\[\#718078\],
+.dark .text-\[\#9aa79f\],
+.dark .text-\[\#64776b\],
+.dark .text-slate-500 {
+  color: var(--muted) !important;
+}
+.dark .text-\[\#1d2c23\] {
+  color: #d7e6de !important;
+}
+.dark .bg-\[\#fafdfb\],
+.dark .bg-\[\#f7faf7\] {
+  background-color: #0f201b !important;
+}
+.dark .bg-\[\#f5f7f5\] {
+  background-color: #12201b !important;
+}
+.dark input,
+.dark textarea {
+  color-scheme: dark;
+}
+/* Username visibility in dark: force strong contrast for names, handles still muted */
+.dark article b,
+.dark [class*=\"font-semibold\"][class*=\"text-\"] {
+  color: var(--text-strong) !important;
+}
+.dark .text-\[\#168b45\] {
+  color: #4ade80 !important;
+}

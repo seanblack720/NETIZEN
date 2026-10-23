@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Netizen — Community, jobs, rides &amp; more</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --green:#22a852;
+  --green-dark:#188a41;
+  --green-darker:#0f6b30;
+  --green-light:#e8f8ee;
+  --green-tint:#f1fbf4;
+  --ink:#12181a;
+  --gray-900:#1c2426;
+  --gray-600:#5c6b6e;
+  --gray-400:#8a9799;
+  --line:#e4e9e8;
+  --bg:#f3f6f5;
+  --white:#ffffff;
+  --danger:#e0455f;
+  --amber:#e08a1f;
+  --blue:#2a6fe0;
+  --purple:#7c4fe0;
+  --radius-lg:20px;
+  --radius-md:14px;
+  --radius-sm:10px;
+  --shadow:0 1px 2px rgba(18,24,26,.04), 0 8px 24px -12px rgba(18,24,26,.12);
+  --header-h:64px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:var(--bg);
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+h1,h2,h3,.brand,.nav-label,.btn,.tab{font-family:'Plus Jakarta Sans',sans-serif;}
+a{color:inherit;text-decoration:none;}
+button{font:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+input,textarea{font:inherit;color:inherit;}
+img{display:block;max-width:100%;}
+::-webkit-scrollbar{height:8px;width:8px;}
+::-webkit-scrollbar-thumb{background:#d3dbd9;border-radius:8px;}
+::-webkit-scrollbar-track{background:transparent;}
+
+/* ---------- Icon sprite ---------- */
+.icon{width:22px;height:22px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
+.icon-fill{fill:currentColor;stroke:none;}
+
+/* ---------- Logo ---------- */
+.logo-mark{
+  width:34px;height:34px;border-radius:10px;background:linear-gradient(155deg,#3cc46b,var(--green));
+  display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0;
+  box-shadow:inset 0 -2px 4px rgba(0,0,0,.08);
+}
+.logo-mark svg{width:20px;height:20px;stroke:#fff;stroke-width:2.4;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+.brand{font-weight:800;font-size:19px;letter-spacing:.2px;color:var(--gray-900);}
+
+/* ================= HEADER ================= */
+.topbar{
+  position:sticky;top:0;z-index:40;
+  height:var(--header-h);
+  background:rgba(255,255,255,.92);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+  display:flex;align-items:center;
+  padding:0 16px;gap:14px;
+}
+.topbar .brand-block{display:flex;align-items:center;gap:10px;}
+.icon-btn{
+  width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  color:var(--gray-600);transition:.15s;
+}
+.icon-btn:hover{background:var(--green-tint);color:var(--green-dark);}
+.topbar-spacer{flex:1;}
+.topbar-search{
+  display:none;
+  align-items:center;gap:10px;background:var(--bg);border:1px solid var(--line);
+  border-radius:999px;padding:9px 16px;max-width:420px;width:100%;color:var(--gray-400);
+}
+.topbar-search input{background:none;border:none;outline:none;flex:1;color:var(--ink);font-size:14px;}
+.topbar-right{display:flex;align-items:center;gap:6px;}
+.avatar{border-radius:50%;object-fit:cover;background:var(--green-light);flex-shrink:0;}
+.avatar-fallback{
+  border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(155deg,#3cc46b,var(--green));color:#fff;font-weight:700;flex-shrink:0;
+}
+
+/* ================= APP SHELL ================= */
+.app-shell{display:flex;max-width:1360px;margin:0 auto;align-items:flex-start;}
+
+/* ----- Desktop sidebar ----- */
+.sidebar{
+  display:none;
+  width:260px;flex-shrink:0;position:sticky;top:var(--header-h);
+  height:calc(100vh - var(--header-h));overflow-y:auto;
+  padding:20px 12px 20px 16px;
+}
+.sidebar-profile{
+  display:flex;align-items:center;gap:12px;padding:10px 10px 18px;border-bottom:1px solid var(--line);margin-bottom:10px;
+}
+.sidebar-profile .name{font-weight:700;font-size:15px;}
+.sidebar-profile .handle{font-size:12.5px;color:var(--gray-600);}
+.nav-list{list-style:none;display:flex;flex-direction:column;gap:2px;}
+.nav-item{
+  display:flex;align-items:center;gap:14px;padding:11px 12px;border-radius:12px;color:var(--gray-900);
+  font-weight:600;font-size:14.5px;transition:.15s;position:relative;
+}
+.nav-item:hover{background:var(--green-tint);}
+.nav-item.active{background:var(--green-light);color:var(--green-darker);}
+.nav-item .icon{color:var(--gray-600);}
+.nav-item.active .icon{color:var(--green);}
+.nav-item .badge{
+  margin-left:auto;background:var(--danger);color:#fff;font-size:11px;font-weight:700;
+  border-radius:999px;padding:1px 7px;
+}
+.sidebar-post-btn{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  background:var(--green);color:#fff;border-radius:12px;padding:12px;font-weight:700;font-size:14.5px;
+  margin:4px 0 16px;box-shadow:0 6px 16px -6px rgba(34,168,82,.6);
+}
+.sidebar-post-btn:hover{background:var(--green-dark);}
+.sidebar-divider{height:1px;background:var(--line);margin:14px 4px;}
+
+/* ----- Right rail (desktop) ----- */
+.rightrail{
+  display:none;
+  width:300px;flex-shrink:0;position:sticky;top:var(--header-h);
+  height:calc(100vh - var(--header-h));overflow-y:auto;padding:20px 16px 20px 8px;
+}
+.rail-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:16px;margin-bottom:16px;}
+.rail-card h3{font-size:14.5px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;}
+.rail-card h3 a{font-size:12.5px;color:var(--green-dark);font-weight:600;}
+.rail-row{display:flex;align-items:center;gap:10px;padding:8px 0;}
+.rail-row .meta{flex:1;min-width:0;}
+.rail-row .meta .t1{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rail-row .meta .t2{font-size:12px;color:var(--gray-600);}
+
+/* ----- Mobile-only quick nav row ----- */
+.quicknav{
+  display:flex;gap:6px;overflow-x:auto;padding:10px 12px;background:var(--white);
+  border-bottom:1px solid var(--line);position:sticky;top:var(--header-h);z-index:30;
+  scrollbar-width:none;
+}
+.quicknav::-webkit-scrollbar{display:none;}
+.quicknav .qn-item{
+  display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0;
+  padding:8px 16px;border-radius:12px;color:var(--gray-600);font-size:11.5px;font-weight:600;
+}
+.quicknav .qn-item.active{color:var(--green-dark);background:var(--green-light);}
+.quicknav .qn-item.active .icon{color:var(--green);}
+
+/* ================= MAIN ================= */
+.main{flex:1;min-width:0;padding:18px 16px 100px;}
+.page{display:none;animation:fadein .25s ease;}
+.page.active{display:block;}
+@keyframes fadein{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+.page-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.page-head h1{font-size:21px;font-weight:800;}
+.page-head p{font-size:13px;color:var(--gray-600);margin-top:2px;}
+
+.section-label{font-size:12.5px;font-weight:800;letter-spacing:.6px;color:var(--gray-600);text-transform:uppercase;margin:22px 2px 12px;}
+.section-label:first-child{margin-top:0;}
+
+/* ---- Stories ---- */
+.stories{display:flex;gap:12px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;}
+.stories::-webkit-scrollbar{display:none;}
+.story-card{
+  position:relative;flex-shrink:0;width:150px;height:210px;border-radius:var(--radius-md);overflow:hidden;
+  background:linear-gradient(160deg,#294b3a,#0f2318);box-shadow:var(--shadow);
+}
+.story-card img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.85;}
+.story-card::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.75),transparent 55%);}
+.story-tag{
+  position:absolute;top:10px;left:10px;background:var(--green);color:#fff;font-size:10.5px;font-weight:700;
+  padding:3px 9px;border-radius:999px;z-index:2;
+}
+.story-text{position:absolute;left:10px;right:10px;bottom:10px;color:#fff;font-weight:700;font-size:14px;line-height:1.25;z-index:2;}
+
+/* ---- Groups ---- */
+.group-scroll{display:flex;flex-direction:column;gap:10px;}
+.group-card{
+  display:flex;align-items:center;gap:12px;background:var(--white);border:1px solid var(--line);
+  border-radius:var(--radius-md);padding:12px;box-shadow:var(--shadow);
+}
+.group-icon{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+.group-info{flex:1;min-width:0;}
+.group-info .gname{font-weight:700;font-size:14.5px;}
+.group-info .gmeta{font-size:12.5px;color:var(--gray-600);margin-top:1px;}
+.avatar-stack{display:flex;align-items:center;}
+.avatar-stack img{width:24px;height:24px;border-radius:50%;border:2px solid #fff;margin-left:-8px;object-fit:cover;}
+.avatar-stack img:first-child{margin-left:0;}
+.stack-more{width:24px;height:24px;border-radius:50%;background:var(--green-light);color:var(--green-darker);font-size:10px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;margin-left:-8px;border:2px solid #fff;}
+.pill-btn{
+  padding:8px 16px;border-radius:999px;font-weight:700;font-size:13px;background:var(--green-light);color:var(--green-darker);flex-shrink:0;transition:.15s;
+}
+.pill-btn:hover{background:var(--green);color:#fff;}
+.pill-btn.solid{background:var(--green);color:#fff;}
+.pill-btn.solid:hover{background:var(--green-dark);}
+.pill-btn.ghost{background:var(--bg);color:var(--gray-600);}
+.pill-btn[disabled]{opacity:.7;cursor:default;}
+
+/* ---- Composer bar ---- */
+.composer-bar{
+  display:flex;align-items:center;gap:12px;background:var(--white);border:1px solid var(--line);
+  border-radius:var(--radius-lg);padding:14px 16px;box-shadow:var(--shadow);margin-bottom:18px;
+}
+.composer-bar .fake-input{
+  flex:1;background:var(--bg);border-radius:999px;padding:11px 16px;color:var(--gray-400);font-size:14px;
+}
+.composer-actions{display:flex;gap:4px;border-top:1px solid var(--line);margin-top:12px;padding-top:10px;}
+.composer-actions .cbtn{
+  flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:9px;border-radius:10px;
+  font-size:13px;font-weight:600;color:var(--gray-600);
+}
+.composer-actions .cbtn:hover{background:var(--bg);}
+.composer-actions .cbtn svg{width:18px;height:18px;}
+.composer-actions .cbtn.photo svg{color:var(--green);}
+.composer-actions .cbtn.video svg{color:var(--purple);}
+.composer-actions .cbtn.job svg{color:var(--blue);}
+
+/* ---- Post card ---- */
+.post-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:16px;box-shadow:var(--shadow);margin-bottom:14px;}
+.post-head{display:flex;align-items:center;gap:11px;}
+.post-head .who{flex:1;min-width:0;}
+.post-head .pname{font-weight:700;font-size:14.5px;}
+.post-head .ptime{font-size:12px;color:var(--gray-600);}
+.post-body{margin:12px 0;font-size:14.5px;line-height:1.55;color:var(--gray-900);}
+.post-media{border-radius:var(--radius-md);overflow:hidden;margin-bottom:10px;}
+.post-media img{width:100%;display:block;max-height:340px;object-fit:cover;}
+.post-stats{display:flex;justify-content:space-between;font-size:12.5px;color:var(--gray-600);padding:6px 2px 10px;border-bottom:1px solid var(--line);}
+.post-actions{display:flex;padding-top:6px;}
+.post-actions .abtn{
+  flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:9px;border-radius:10px;
+  font-size:13.5px;font-weight:600;color:var(--gray-600);
+}
+.post-actions .abtn:hover{background:var(--bg);}
+.post-actions .abtn.liked{color:var(--danger);}
+.post-actions .abtn.liked svg{fill:var(--danger);stroke:var(--danger);}
+
+/* ---- Videos ---- */
+.video-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;}
+.video-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden;box-shadow:var(--shadow);}
+.video-thumb{position:relative;aspect-ratio:16/10;background:var(--ink);}
+.video-thumb img{width:100%;height:100%;object-fit:cover;}
+.video-play{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.15);
+}
+.video-play svg{width:46px;height:46px;color:#fff;filter:drop-shadow(0 2px 6px rgba(0,0,0,.4));}
+.video-dur{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.75);color:#fff;font-size:11px;font-weight:700;padding:2px 6px;border-radius:5px;}
+.video-info{padding:11px 12px;display:flex;gap:9px;}
+.video-info .vt{flex:1;min-width:0;}
+.video-info .vtitle{font-size:13.5px;font-weight:700;line-height:1.3;margin-bottom:3px;}
+.video-info .vmeta{font-size:12px;color:var(--gray-600);}
+
+/* ---- Messages ---- */
+.messages-shell{display:flex;height:calc(100vh - var(--header-h) - 34px);background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow);}
+.conv-list{width:340px;flex-shrink:0;border-right:1px solid var(--line);display:flex;flex-direction:column;}
+.conv-search{padding:14px;border-bottom:1px solid var(--line);}
+.conv-items{overflow-y:auto;flex:1;}
+.conv-item{display:flex;align-items:center;gap:11px;padding:12px 14px;border-bottom:1px solid #f0f2f1;position:relative;}
+.conv-item:hover,.conv-item.active{background:var(--green-tint);}
+.conv-item .cmeta{flex:1;min-width:0;}
+.conv-item .cname{font-weight:700;font-size:14px;display:flex;justify-content:space-between;gap:6px;}
+.conv-item .cname span.time{font-weight:500;font-size:11.5px;color:var(--gray-400);}
+.conv-item .clast{font-size:12.5px;color:var(--gray-600);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
+.unread-dot{width:9px;height:9px;border-radius:50%;background:var(--green);flex-shrink:0;}
+.chat-panel{flex:1;display:flex;flex-direction:column;min-width:0;}
+.chat-head{display:flex;align-items:center;gap:11px;padding:13px 16px;border-bottom:1px solid var(--line);}
+.chat-head .who{flex:1;}
+.chat-head .cn{font-weight:700;font-size:14.5px;}
+.chat-head .cs{font-size:12px;color:var(--green-dark);}
+.chat-back{display:none;}
+.chat-body{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:10px;background:#fafcfb;}
+.bubble{max-width:70%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.4;}
+.bubble.them{background:var(--white);border:1px solid var(--line);border-bottom-left-radius:4px;align-self:flex-start;}
+.bubble.me{background:var(--green);color:#fff;border-bottom-right-radius:4px;align-self:flex-end;}
+.bubble-time{font-size:10.5px;color:var(--gray-400);margin-top:2px;}
+.chat-input{display:flex;align-items:center;gap:8px;padding:12px 14px;border-top:1px solid var(--line);}
+.chat-input input{flex:1;background:var(--bg);border-radius:999px;padding:11px 16px;border:none;outline:none;font-size:14px;}
+.send-btn{width:40px;height:40px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.empty-chat{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--gray-400);gap:10px;}
+
+/* ---- Notifications ---- */
+.notif-item{display:flex;gap:12px;padding:13px 14px;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-md);margin-bottom:9px;box-shadow:var(--shadow);position:relative;}
+.notif-item.unread{background:var(--green-tint);border-color:#d7f0e0;}
+.notif-icon{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.notif-text{font-size:13.5px;line-height:1.4;flex:1;}
+.notif-text b{font-weight:700;}
+.notif-time{font-size:12px;color:var(--gray-600);margin-top:3px;}
+.notif-item .unread-dot{position:absolute;right:14px;top:16px;}
+
+/* ---- Taxis ---- */
+.map-box{
+  height:230px;border-radius:var(--radius-lg);position:relative;overflow:hidden;margin-bottom:16px;
+  background:
+    linear-gradient(var(--green-tint),var(--green-tint)),
+    repeating-linear-gradient(0deg,#dfe9e4 0,#dfe9e4 1px,transparent 1px,transparent 34px),
+    repeating-linear-gradient(90deg,#dfe9e4 0,#dfe9e4 1px,transparent 1px,transparent 34px);
+  border:1px solid var(--line);
+}
+.map-pin{position:absolute;transform:translate(-50%,-100%);color:var(--green-darker);}
+.map-pin.p2{color:var(--danger);}
+.map-car{position:absolute;width:30px;height:30px;background:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);color:var(--green-dark);}
+.ride-form{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:16px;box-shadow:var(--shadow);margin-bottom:20px;}
+.ride-input-row{display:flex;align-items:center;gap:10px;padding:12px 4px;border-bottom:1px solid var(--line);}
+.ride-input-row:last-child{border-bottom:none;}
+.ride-input-row input{flex:1;border:none;outline:none;font-size:14px;background:none;}
+.ride-dot{width:9px;height:9px;border-radius:50%;border:2px solid var(--green);flex-shrink:0;}
+.ride-dot.sq{border-radius:2px;border-color:var(--danger);}
+.ride-options{display:flex;flex-direction:column;gap:10px;margin-bottom:18px;}
+.ride-option{display:flex;align-items:center;gap:13px;background:var(--white);border:2px solid var(--line);border-radius:var(--radius-md);padding:13px;box-shadow:var(--shadow);}
+.ride-option.selected{border-color:var(--green);background:var(--green-tint);}
+.ride-emoji{width:46px;height:46px;border-radius:12px;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+.ride-option .rinfo{flex:1;}
+.ride-option .rname{font-weight:700;font-size:14.5px;}
+.ride-option .rsub{font-size:12px;color:var(--gray-600);}
+.ride-option .rprice{font-weight:800;font-size:15px;text-align:right;}
+.ride-option .reta{font-size:11.5px;color:var(--gray-600);text-align:right;}
+.big-btn{width:100%;padding:14px;background:var(--green);color:#fff;font-weight:800;font-size:15px;border-radius:14px;box-shadow:0 8px 18px -8px rgba(34,168,82,.6);}
+.big-btn:hover{background:var(--green-dark);}
+.trip-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);}
+.trip-row:last-child{border-bottom:none;}
+.trip-icon{width:38px;height:38px;border-radius:10px;background:var(--bg);display:flex;align-items:center;justify-content:center;}
+.confirm-banner{display:none;align-items:center;gap:10px;background:var(--green-light);color:var(--green-darker);padding:12px 16px;border-radius:12px;font-weight:700;font-size:13.5px;margin-bottom:16px;}
+
+/* ---- Search page ---- */
+.search-hero{margin-bottom:16px;}
+.search-input-lg{display:flex;align-items:center;gap:10px;background:var(--white);border:1px solid var(--line);border-radius:14px;padding:13px 16px;box-shadow:var(--shadow);}
+.search-input-lg input{flex:1;border:none;outline:none;font-size:15px;background:none;}
+.tabs{display:flex;gap:8px;overflow-x:auto;margin:14px 0 16px;scrollbar-width:none;}
+.tabs::-webkit-scrollbar{display:none;}
+.tab{padding:9px 16px;border-radius:999px;background:var(--white);border:1px solid var(--line);font-weight:700;font-size:13px;color:var(--gray-600);flex-shrink:0;}
+.tab.active{background:var(--green);color:#fff;border-color:var(--green);}
+.result-row{display:flex;align-items:center;gap:12px;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-md);padding:12px;margin-bottom:10px;box-shadow:var(--shadow);}
+.result-row .rmeta{flex:1;min-width:0;}
+.result-row .rname{font-weight:700;font-size:14px;}
+.result-row .rsub{font-size:12.5px;color:var(--gray-600);}
+.rtag{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--green-dark);background:var(--green-light);padding:3px 8px;border-radius:6px;}
+
+/* ---- Funds ---- */
+.balance-card{
+  background:linear-gradient(155deg,#1c8f47,#0f6b30 65%,#0a4f24);
+  border-radius:var(--radius-lg);padding:24px;color:#fff;margin-bottom:18px;position:relative;overflow:hidden;box-shadow:0 12px 30px -14px rgba(15,107,48,.7);
+}
+.balance-card::after{content:"";position:absolute;right:-40px;top:-40px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,.08);}
+.balance-card .lbl{font-size:12.5px;opacity:.85;font-weight:600;}
+.balance-card .amt{font-size:34px;font-weight:800;margin:6px 0 18px;}
+.balance-actions{display:flex;gap:10px;position:relative;z-index:1;}
+.balance-actions button{flex:1;background:rgba(255,255,255,.16);color:#fff;padding:11px;border-radius:12px;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px;backdrop-filter:blur(4px);}
+.balance-actions button:hover{background:rgba(255,255,255,.28);}
+.add-funds-form{display:none;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-md);padding:14px;margin-bottom:16px;box-shadow:var(--shadow);gap:10px;}
+.add-funds-form input{flex:1;border:1px solid var(--line);border-radius:10px;padding:10px 12px;outline:none;font-size:14px;}
+.tx-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);}
+.tx-row:last-child{border-bottom:none;}
+.tx-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.tx-icon.in{background:var(--green-light);color:var(--green-darker);}
+.tx-icon.out{background:#fdecef;color:var(--danger);}
+.tx-meta{flex:1;}
+.tx-meta .t1{font-weight:700;font-size:13.5px;}
+.tx-meta .t2{font-size:12px;color:var(--gray-600);}
+.tx-amt{font-weight:800;font-size:14px;}
+.tx-amt.pos{color:var(--green-darker);}
+.tx-amt.neg{color:var(--danger);}
+
+/* ---- Composer page ---- */
+.composer-page{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:18px;box-shadow:var(--shadow);max-width:640px;}
+.composer-page .who{display:flex;align-items:center;gap:11px;margin-bottom:14px;}
+.composer-page textarea{width:100%;border:none;outline:none;resize:none;font-size:16px;min-height:120px;font-family:inherit;}
+.audience-pill{display:inline-flex;align-items:center;gap:6px;background:var(--bg);padding:6px 12px;border-radius:999px;font-size:12.5px;font-weight:700;color:var(--gray-600);margin-top:2px;}
+.attach-row{display:flex;gap:8px;margin:14px 0;flex-wrap:wrap;}
+.attach-row button{display:flex;align-items:center;gap:7px;border:1px solid var(--line);padding:9px 14px;border-radius:10px;font-size:13px;font-weight:600;}
+.attach-row button:hover{background:var(--bg);}
+.attach-row button svg{width:17px;height:17px;}
+
+/* ---- Petitions ---- */
+.petition-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:16px;margin-bottom:14px;box-shadow:var(--shadow);}
+.petition-card .ptag{display:inline-block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;background:var(--green-light);color:var(--green-darker);padding:3px 9px;border-radius:6px;margin-bottom:8px;}
+.petition-card h3{font-size:15.5px;margin-bottom:6px;}
+.petition-card p{font-size:13.5px;color:var(--gray-600);line-height:1.5;margin-bottom:12px;}
+.progress-track{height:8px;background:var(--bg);border-radius:999px;overflow:hidden;margin-bottom:8px;}
+.progress-fill{height:100%;background:linear-gradient(90deg,#3cc46b,var(--green));border-radius:999px;}
+.petition-foot{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;color:var(--gray-600);}
+.petition-foot strong{color:var(--ink);}
+
+/* ---- Jobs ---- */
+.job-chips{display:flex;gap:8px;overflow-x:auto;margin-bottom:16px;scrollbar-width:none;}
+.job-chips::-webkit-scrollbar{display:none;}
+.job-card{display:flex;gap:13px;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:15px;margin-bottom:12px;box-shadow:var(--shadow);}
+.job-logo{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;color:#fff;flex-shrink:0;}
+.job-info{flex:1;min-width:0;}
+.job-info h3{font-size:14.5px;margin-bottom:2px;}
+.job-info .jco{font-size:13px;color:var(--gray-600);margin-bottom:8px;}
+.job-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
+.job-tag{font-size:11px;font-weight:700;background:var(--bg);color:var(--gray-600);padding:3px 8px;border-radius:6px;}
+.job-foot{display:flex;align-items:center;justify-content:space-between;}
+.job-foot .jtime{font-size:12px;color:var(--gray-400);}
+
+/* ---- Groups page ---- */
+.groups-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;}
+.groups-grid .group-card2{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow);}
+.group-cover{height:84px;position:relative;}
+.group-cover .g-icon-lg{
+  position:absolute;left:14px;bottom:-22px;width:56px;height:56px;border-radius:14px;
+  display:flex;align-items:center;justify-content:center;font-size:26px;border:3px solid #fff;
+}
+.group-card2-body{padding:30px 14px 14px;}
+.group-card2-body h3{font-size:14.5px;margin-bottom:3px;}
+.group-card2-body .gmeta{font-size:12.5px;color:var(--gray-600);margin-bottom:8px;}
+.group-card2-body p{font-size:13px;color:var(--gray-600);line-height:1.45;margin-bottom:12px;}
+
+/* ---- Profile ---- */
+.profile-cover{height:150px;border-radius:var(--radius-lg);background:linear-gradient(135deg,#2fbd63,#0f6b30);position:relative;margin-bottom:52px;}
+.profile-avatar{position:absolute;left:20px;bottom:-38px;width:96px;height:96px;border-radius:24px;border:4px solid var(--white);object-fit:cover;background:var(--green-light);}
+.profile-head{display:flex;justify-content:space-between;align-items:flex-start;padding:0 4px;margin-bottom:6px;}
+.profile-head h1{font-size:20px;}
+.profile-head p{font-size:13px;color:var(--gray-600);margin-top:2px;}
+.profile-stats{display:flex;gap:22px;padding:14px 4px;margin-bottom:8px;}
+.profile-stats div{font-size:13.5px;color:var(--gray-600);}
+.profile-stats strong{color:var(--ink);font-size:15px;display:block;}
+.profile-tabs{display:flex;gap:22px;border-bottom:1px solid var(--line);margin-bottom:16px;}
+.profile-tabs button{padding:11px 2px;font-weight:700;font-size:13.5px;color:var(--gray-600);border-bottom:2px solid transparent;}
+.profile-tabs button.active{color:var(--green-darker);border-color:var(--green);}
+.photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.photo-grid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;}
+.about-list{display:flex;flex-direction:column;gap:12px;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-md);padding:16px;box-shadow:var(--shadow);}
+.about-row{display:flex;align-items:center;gap:12px;font-size:13.5px;color:var(--gray-900);}
+.about-row .icon{color:var(--gray-600);}
+
+/* ================= Bottom nav (mobile) ================= */
+.bottomnav{
+  position:fixed;left:0;right:0;bottom:0;z-index:50;
+  background:rgba(255,255,255,.97);backdrop-filter:blur(10px);
+  border-top:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-around;
+  padding:8px 6px calc(env(safe-area-inset-bottom,0px) + 8px);
+}
+.bn-item{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--gray-600);font-size:10.5px;font-weight:700;flex:1;padding:4px;}
+.bn-item.active{color:var(--green-dark);}
+.bn-item .icon{width:22px;height:22px;}
+.bn-post{
+  width:52px;height:52px;border-radius:16px;background:var(--green);color:#fff;
+  display:flex;align-items:center;justify-content:center;margin-top:-26px;box-shadow:0 8px 18px -6px rgba(34,168,82,.7);
+  border:4px solid var(--bg);
+}
+.bn-post svg{width:24px;height:24px;}
+
+/* ================= Bottom sheet / modal (Post +) ================= */
+.overlay{position:fixed;inset:0;background:rgba(15,20,18,.5);z-index:60;display:none;align-items:flex-end;justify-content:center;}
+.overlay.show{display:flex;}
+.sheet{
+  background:var(--white);width:100%;max-width:520px;border-radius:22px 22px 0 0;padding:10px 18px 26px;
+  max-height:85vh;overflow-y:auto;animation:slideup .25s ease;
+}
+@keyframes slideup{from{transform:translateY(100%);}to{transform:translateY(0);}}
+.sheet-handle{width:38px;height:4px;background:var(--line);border-radius:99px;margin:6px auto 14px;}
+.sheet-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px;}
+.sheet-item{
+  display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:16px;border-radius:16px;background:var(--bg);text-align:left;
+}
+.sheet-item.wide{grid-column:1/-1;flex-direction:row;align-items:center;background:var(--green-light);}
+.sheet-item .si-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;}
+.sheet-item .si-title{font-weight:700;font-size:14px;}
+.sheet-item .si-sub{font-size:12px;color:var(--gray-600);}
+.sheet-item:hover{filter:brightness(.97);}
+
+@media (min-width:860px){
+  .overlay{align-items:center;}
+  .sheet{border-radius:22px;max-width:460px;}
+}
+
+/* ================= Toast ================= */
+.toast{
+  position:fixed;left:50%;bottom:100px;transform:translateX(-50%) translateY(20px);
+  background:var(--ink);color:#fff;padding:11px 20px;border-radius:999px;font-size:13.5px;font-weight:600;
+  z-index:80;opacity:0;transition:.25s;pointer-events:none;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ================= Responsive breakpoints ================= */
+@media (min-width:640px){
+  .topbar-search{display:flex;}
+}
+@media (min-width:960px){
+  .quicknav,.bottomnav{display:none;}
+  .sidebar,.rightrail{display:block;}
+  .main{padding:20px 24px 40px;}
+  .video-grid{grid-template-columns:repeat(auto-fill,minmax(240px,1fr));}
+}
+@media (max-width:959px){
+  .topbar .brand{font-size:18px;}
+}
+@media (max-width:640px){
+  .messages-shell{height:calc(100vh - var(--header-h) - 58px - 66px);border-radius:0;border-left:none;border-right:none;margin:0 -16px;}
+  .conv-list{width:100%;position:absolute;inset:0;background:#fff;z-index:2;}
+  .messages-shell.chat-open .conv-list{display:none;}
+  .chat-panel{width:100%;}
+  .chat-back{display:flex;}
+  .messages-shell{position:relative;}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= TOP BAR ================= -->
+<header class="topbar">
+  <button class="icon-btn" onclick="goto('profile')" aria-label="Profile">
+    <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+  </button>
+  <div class="brand-block" style="cursor:pointer" onclick="goto('feed')">
+    <div class="logo-mark"><svg viewBox="0 0 24 24"><path d="M6 19V7c0-1.1.9-2 2-2s2 .9 2 2v4l6-6.5c.4-.5 1-.5 1.4 0 .3.3.4.7.3 1.1L15 12l3 3.5c.4.5.3 1.2-.2 1.6-.4.3-1 .3-1.4 0L11 12v5c0 1.1-.9 2-2 2s-2-.9-2-2Z"/></svg></div>
+    <span class="brand">NETIZEN</span>
+  </div>
+  <div class="topbar-search">
+    <svg class="icon" viewBox="0 0 24 24" style="width:17px;height:17px"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input type="text" placeholder="Search Netizen…" oninput="filterSearch(this.value)" onfocus="goto('search')">
+  </div>
+  <div class="topbar-spacer"></div>
+  <div class="topbar-right">
+    <button class="icon-btn" onclick="goto('search')" aria-label="Search">
+      <svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    </button>
+    <button class="icon-btn" onclick="toggleSidebarMenu()" aria-label="Menu">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- ================= MOBILE QUICK NAV ================= -->
+<nav class="quicknav" id="quicknav">
+  <button class="qn-item active" data-page="feed" onclick="goto('feed')">
+    <svg class="icon" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></svg>Feed
+  </button>
+  <button class="qn-item" data-page="videos" onclick="goto('videos')">
+    <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 9.5v5l4.5-2.5Z" fill="currentColor" stroke="none"/></svg>Videos
+  </button>
+  <button class="qn-item" data-page="messages" onclick="goto('messages')">
+    <svg class="icon" viewBox="0 0 24 24"><path d="M21 11.5A8.4 8.4 0 0 1 9.3 19.4L4 21l1.7-4.9A8.4 8.4 0 1 1 21 11.5Z"/></svg>Messages
+  </button>
+  <button class="qn-item" data-page="notifications" onclick="goto('notifications')">
+    <svg class="icon" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Notifications
+  </button>
+  <button class="qn-item" data-page="taxis" onclick="goto('taxis')">
+    <svg class="icon" viewBox="0 0 24 24"><path d="M3 16h1m16 0h1M5 16l1.5-5A2 2 0 0 1 8.4 9.6h7.2a2 2 0 0 1 1.9 1.4L19 16"/><rect x="3" y="16" width="18" height="4" rx="1.4"/><circle cx="7.5" cy="20" r="1.3"/><circle cx="16.5" cy="20" r="1.3"/></svg>Taxis
+  </button>
+</nav>
+
+<!-- ================= APP SHELL ================= -->
+<div class="app-shell">
+
+  <!-- ---------- DESKTOP SIDEBAR ---------- -->
+  <aside class="sidebar">
+    <div class="sidebar-profile">
+      <img class="avatar" src="/avatar-2.png" width="42" height="42" alt="">
+      <div>
+        <div class="name">Naledi Dube</div>
+        <div class="handle">@naledi.d</div>
+      </div>
+    </div>
+    <button class="sidebar-post-btn" onclick="openSheet()">
+      <svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M12 5v14M5 12h14"/></svg>
+      Create post
+    </button>
+    <ul class="nav-list" id="sidebarNav">
+      <li><button class="nav-item active" data-page="feed" onclick="goto('feed')">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></svg>Feed</button></li>
+      <li><button class="nav-item" data-page="videos" onclick="goto('videos')">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 9.5v5l4.5-2.5Z" fill="currentColor" stroke="none"/></svg>Videos</button></li>
+      <li><button class="nav-item" data-page="messages" onclick="goto('messages')">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M21 11.5A8.4 8.4 0 0 1 9.3 19.4L4 21l1.7-4.9A8.4 8.4 0 1 1 21 11.5Z"/></svg>Messages<span class="badge">3</span></button></li>
+      <li><button class="nav-item" data-page="notifications" onclick="goto('notifications')">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Notifications<span class="badge">5</span></button></li>
+      <li><button class="nav-item" data-page="taxis" onclick="goto('taxis')">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M3 16h1m16 0h1M5 16l1.5-5A2 2 0 0 1 8.4 9.6h7.2a2 2 0 0 1 1.9 1.4L19 16"/><rect x="3" y="16" width="18" height="4" rx="1.4"/><circle cx="7.5" cy="20" r="1.3"/><circle cx="16.5" cy="20" r="1.3"/></svg>Taxis</button></li>
+      <div class="sidebar-divider"></div>
+      <li><button class="nav-item" data-page="search" onclick="goto('search')">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Search</button></li>
+      <li><button class="nav-item" data-page="funds" onclick="goto('funds')">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><circle cx="16.5" cy="14.5" r="1.4" fill="currentColor" stroke="none"/></svg>Funds</button></li>
+      <li><button class="nav-item" data-page="petitions" onclick="goto('petitions')">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="16" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M9 11h6M9 15h4"/></svg>Petitions</button></li>
+      <li><button class="nav-item" data-page="jobs" onclick="goto('jobs')">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 12h18"/></svg>Jobs</button></li>
+      <li><button class="nav-item" data-page="groups" onclick="goto('groups')">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M2.5 20c0-3.3 2.9-6 6.5-6s6.5 2.7 6.5 6"/><circle cx="17.5" cy="9" r="2.4"/><path d="M22 20c0-2.5-1.9-4.6-4.4-5.2"/></svg>Groups</button></li>
+      <div class="sidebar-divider"></div>
+      <li><button class="nav-item" data-page="profile" onclick="goto('profile')">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>Profile</button></li>
+    </ul>
+  </aside>
+
+  <!-- ---------- MAIN CONTENT ---------- -->
+  <main class="main">
+
+    <!-- ============ FEED ============ -->
+    <section class="page active" id="page-feed">
+      <div class="composer-bar">
+        <img class="avatar" src="/avatar-2.png" width="40" height="40" alt="">
+        <div class="fake-input" onclick="openComposer('post')">Share your thoughts with the community…</div>
+      </div>
+
+      <div class="section-label">Added Netizens status</div>
+      <div class="stories">
+        <div class="story-card"><img src="/story-1.png" alt="Community gathering"><span class="story-tag">Event</span><span class="story-text">Local events happening this weekend</span></div>
+        <div class="story-card"><img src="/story-2.png" alt="Tech community"><span class="story-tag">Community</span><span class="story-text">Community projects making a difference</span></div>
+        <div class="story-card"><img src="/story-1.png" alt="Event"><span class="story-tag">Update</span><span class="story-text">Community garden day highlights</span></div>
+        <div class="story-card"><img src="/story-2.png" alt="Market"><span class="story-tag">Event</span><span class="story-text">Weekend farmers market guide</span></div>
+      </div>
+
+      <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">Groups <a href="#" onclick="goto('groups');return false" style="color:var(--green-dark);text-transform:none;font-weight:700;letter-spacing:0">See all</a></div>
+      <div class="group-scroll">
+        <div class="group-card">
+          <img class="group-icon" src="/group-1.png" alt="Community Group" style="background:none;width:46px;height:46px;border-radius:12px">
+          <div class="group-info"><div class="gname">Community Group</div><div class="gmeta">20.3k members</div></div>
+          <div class="avatar-stack">
+            <img src="/avatar-1.png" alt=""><img src="/avatar-2.png" alt=""><img src="/avatar-3.png" alt="">
+            <span class="stack-more">+32</span>
+          </div>
+        </div>
+        <div class="group-card">
+          <img class="group-icon" src="/group-2.png" alt="Clean City Initiative" style="background:none;width:46px;height:46px;border-radius:12px">
+          <div class="group-info"><div class="gname">Clean City Initiative</div><div class="gmeta">8.7k members</div></div>
+          <div class="avatar-stack">
+            <img src="/avatar-2.png" alt=""><img src="/avatar-3.png" alt=""><img src="/avatar-1.png" alt="">
+            <span class="stack-more">+18</span>
+          </div>
+        </div>
+        <div class="group-card">
+          <img class="group-icon" src="/group-1.png" alt="Sports Hub" style="background:none;width:46px;height:46px;border-radius:12px">
+          <div class="group-info"><div class="gname">Sports Hub</div><div class="gmeta">15.1k members</div></div>
+          <div class="avatar-stack">
+            <img src="/avatar-3.png" alt=""><img src="/avatar-1.png" alt=""><img src="/avatar-2.png" alt="">
+            <span class="stack-more">+24</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-label">Recent posts</div>
+      <div id="feedPosts"></div>
+    </section>
+
+    <!-- ============ VIDEOS ============ -->
+    <section class="page" id="page-videos">
+      <div class="page-head"><div><h1>Videos</h1><p>Clips and updates from your community</p></div></div>
+      <div class="video-grid" id="videoGrid"></div>
+    </section>
+
+    <!-- ============ MESSAGES ============ -->
+    <section class="page" id="page-messages">
+      <div class="page-head"><div><h1>Messages</h1><p>3 unread conversations</p></div></div>
+      <div class="messages-shell" id="messagesShell">
+        <div class="conv-list">
+          <div class="conv-search">
+            <div class="search-input-lg" style="padding:9px 13px">
+              <svg class="icon" viewBox="0 0 24 24" style="width:16px;height:16px"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <input placeholder="Search messages">
+            </div>
+          </div>
+          <div class="conv-items" id="convItems"></div>
+        </div>
+        <div class="chat-panel" id="chatPanel">
+          <div class="empty-chat">
+            <svg class="icon" viewBox="0 0 24 24" style="width:44px;height:44px"><path d="M21 11.5A8.4 8.4 0 0 1 9.3 19.4L4 21l1.7-4.9A8.4 8.4 0 1 1 21 11.5Z"/></svg>
+            <div>Select a conversation to start chatting</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ NOTIFICATIONS ============ -->
+    <section class="page" id="page-notifications">
+      <div class="page-head">
+        <div><h1>Notifications</h1><p>Stay up to date with your community</p></div>
+        <button class="pill-btn" onclick="markAllRead()">Mark all read</button>
+      </div>
+      <div class="section-label">New</div>
+      <div id="notifNew"></div>
+      <div class="section-label">Earlier</div>
+      <div id="notifOld"></div>
+    </section>
+
+    <!-- ============ TAXIS ============ -->
+    <section class="page" id="page-taxis">
+      <div class="page-head"><div><h1>Taxis</h1><p>Book a ride around your city</p></div></div>
+      <div class="confirm-banner" id="rideConfirm">
+        <svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="m20 6-11 11-5-5"/></svg>
+        <span>Ride booked! Your driver is on the way — arriving in 4 min.</span>
+      </div>
+      <div class="map-box">
+        <svg class="map-pin" viewBox="0 0 24 24" style="width:30px;height:30px;left:28%;top:60%"><path d="M12 22s7-7.5 7-12a7 7 0 1 0-14 0c0 4.5 7 12 7 12Z" fill="currentColor"/></svg>
+        <svg class="map-pin p2" viewBox="0 0 24 24" style="width:30px;height:30px;left:70%;top:28%"><path d="M12 22s7-7.5 7-12a7 7 0 1 0-14 0c0 4.5 7 12 7 12Z" fill="currentColor"/></svg>
+        <div class="map-car" style="left:45%;top:45%">
+          <svg class="icon" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M3 16h1m16 0h1M5 16l1.5-5A2 2 0 0 1 8.4 9.6h7.2a2 2 0 0 1 1.9 1.4L19 16"/><rect x="3" y="16" width="18" height="4" rx="1.4"/></svg>
+        </div>
+      </div>
+      <div class="ride-form">
+        <div class="ride-input-row"><span class="ride-dot"></span><input value="Current location — Main St &amp; 5th"></div>
+        <div class="ride-input-row"><span class="ride-dot sq"></span><input placeholder="Where to?" value="Riverside Community Centre"></div>
+      </div>
+      <div class="section-label">Choose a ride</div>
+      <div class="ride-options" id="rideOptions"></div>
+      <button class="big-btn" onclick="bookRide()">Book ride</button>
+
+      <div class="section-label">Recent trips</div>
+      <div class="rail-card" style="margin-top:0">
+        <div class="trip-row"><div class="trip-icon"><svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M3 16h1m16 0h1M5 16l1.5-5A2 2 0 0 1 8.4 9.6h7.2a2 2 0 0 1 1.9 1.4L19 16"/><rect x="3" y="16" width="18" height="4" rx="1.4"/></svg></div><div class="tx-meta"><div class="t1">Downtown Mall</div><div class="t2">Yesterday, 6:42 PM</div></div><div class="tx-amt">R64.00</div></div>
+        <div class="trip-row"><div class="trip-icon"><svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M3 16h1m16 0h1M5 16l1.5-5A2 2 0 0 1 8.4 9.6h7.2a2 2 0 0 1 1.9 1.4L19 16"/><rect x="3" y="16" width="18" height="4" rx="1.4"/></svg></div><div class="tx-meta"><div class="t1">Central Station</div><div class="t2">Mon, 8:15 AM</div></div><div class="tx-amt">R41.50</div></div>
+        <div class="trip-row"><div class="trip-icon"><svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M3 16h1m16 0h1M5 16l1.5-5A2 2 0 0 1 8.4 9.6h7.2a2 2 0 0 1 1.9 1.4L19 16"/><rect x="3" y="16" width="18" height="4" rx="1.4"/></svg></div><div class="tx-meta"><div class="t1">Riverside Park</div><div class="t2">Sat, 3:20 PM</div></div><div class="tx-amt">R38.00</div></div>
+      </div>
+    </section>
+
+    <!-- ============ SEARCH ============ -->
+    <section class="page" id="page-search">
+      <div class="page-head"><div><h1>Search</h1><p>Find people, groups, posts and jobs</p></div></div>
+      <div class="search-hero">
+        <div class="search-input-lg">
+          <svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input id="searchBox" placeholder="Search Netizen…" oninput="filterSearch(this.value)">
+        </div>
+      </div>
+      <div class="tabs" id="searchTabs">
+        <button class="tab active" data-tab="all">All</button>
+        <button class="tab" data-tab="people">People</button>
+        <button class="tab" data-tab="groups">Groups</button>
+        <button class="tab" data-tab="jobs">Jobs</button>
+      </div>
+      <div id="searchResults"></div>
+    </section>
+
+    <!-- ============ FUNDS ============ -->
+    <section class="page" id="page-funds">
+      <div class="page-head"><div><h1>Funds</h1><p>Your Netizen wallet</p></div></div>
+      <div class="balance-card">
+        <div class="lbl">Available balance</div>
+        <div class="amt" id="balanceAmt">R1,248.50</div>
+        <div class="balance-actions">
+          <button onclick="toggleAddFunds()"><svg class="icon" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M12 5v14M5 12h14"/></svg>Add funds</button>
+          <button onclick="showToast('Withdraw flow — UI only')"><svg class="icon" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M12 19V5M5 12l7-7 7 7"/></svg>Withdraw</button>
+          <button onclick="showToast('Send money — UI only')"><svg class="icon" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="m3 3 18 9-18 9 4-9Z"/></svg>Send</button>
+        </div>
+      </div>
+      <div class="add-funds-form" id="addFundsForm">
+        <input type="number" placeholder="Amount (R)" id="addFundsInput">
+        <button class="pill-btn solid" onclick="addFunds()">Add</button>
+      </div>
+      <div class="section-label">Recent transactions</div>
+      <div class="rail-card" style="margin-top:0">
+        <div class="tx-row"><div class="tx-icon in"><svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div><div class="tx-meta"><div class="t1">Deposit — EFT</div><div class="t2">Today, 9:04 AM</div></div><div class="tx-amt pos">+R500.00</div></div>
+        <div class="tx-row"><div class="tx-icon out"><svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M3 16h1m16 0h1M5 16l1.5-5A2 2 0 0 1 8.4 9.6h7.2a2 2 0 0 1 1.9 1.4L19 16"/><rect x="3" y="16" width="18" height="4" rx="1.4"/></svg></div><div class="tx-meta"><div class="t1">Taxi ride — Downtown Mall</div><div class="t2">Yesterday, 6:42 PM</div></div><div class="tx-amt neg">-R64.00</div></div>
+        <div class="tx-row"><div class="tx-icon out"><svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></div><div class="tx-meta"><div class="t1">Featured job listing</div><div class="t2">Mon, 11:00 AM</div></div><div class="tx-amt neg">-R120.00</div></div>
+        <div class="tx-row"><div class="tx-icon in"><svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div><div class="tx-meta"><div class="t1">Refund — Cancelled ride</div><div class="t2">Sat, 2:12 PM</div></div><div class="tx-amt pos">+R38.00</div></div>
+      </div>
+    </section>
+
+    <!-- ============ POST COMPOSER PAGE ============ -->
+    <section class="page" id="page-post">
+      <div class="page-head"><div><h1 id="composerTitle">Create post</h1><p>Shared with the community</p></div></div>
+      <div class="composer-page">
+        <div class="who">
+          <img class="avatar" src="/avatar-2.png" width="44" height="44" alt="">
+          <div>
+            <div style="font-weight:700;font-size:14.5px">Naledi Dube</div>
+            <div class="audience-pill"><svg class="icon" viewBox="0 0 24 24" style="width:13px;height:13px"><circle cx="9" cy="8" r="3"/><path d="M2.5 20c0-3.3 2.9-6 6.5-6s6.5 2.7 6.5 6"/><circle cx="17.5" cy="9" r="2.4"/></svg>Public — Anyone on Netizen</div>
+          </div>
+        </div>
+        <textarea id="composerText" placeholder="What's on your mind?"></textarea>
+        <div id="composerImgPreview"></div>
+        <div class="attach-row">
+          <button onclick="composerAttach('photo')"><svg class="icon" viewBox="0 0 24 24" style="color:var(--green)"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5-11 11"/></svg>Photo</button>
+          <button onclick="composerAttach('video')"><svg class="icon" viewBox="0 0 24 24" style="color:var(--purple)"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m22 8-6 4 6 4Z"/></svg>Video</button>
+          <button onclick="composerAttach('location')"><svg class="icon" viewBox="0 0 24 24" style="color:var(--danger)"><path d="M12 22s7-7.5 7-12a7 7 0 1 0-14 0c0 4.5 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/></svg>Location</button>
+          <button onclick="composerAttach('feeling')"><svg class="icon" viewBox="0 0 24 24" style="color:var(--amber)"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg>Feeling</button>
+        </div>
+        <button class="big-btn" onclick="submitPost()">Post</button>
+      </div>
+    </section>
+
+    <!-- ============ PETITIONS ============ -->
+    <section class="page" id="page-petitions">
+      <div class="page-head"><div><h1>Petitions</h1><p>Causes your community is standing behind</p></div></div>
+      <div id="petitionList"></div>
+    </section>
+
+    <!-- ============ JOBS ============ -->
+    <section class="page" id="page-jobs">
+      <div class="page-head">
+        <div><h1>Jobs</h1><p>Opportunities near you</p></div>
+        <button class="pill-btn solid" onclick="openComposer('job')">Post a job</button>
+      </div>
+      <div class="job-chips">
+        <button class="tab active" data-jobtab="all">All</button>
+        <button class="tab" data-jobtab="Remote">Remote</button>
+        <button class="tab" data-jobtab="Full-time">Full-time</button>
+        <button class="tab" data-jobtab="Part-time">Part-time</button>
+      </div>
+      <div id="jobList"></div>
+    </section>
+
+    <!-- ============ GROUPS ============ -->
+    <section class="page" id="page-groups">
+      <div class="page-head">
+        <div><h1>Groups</h1><p>Find your people</p></div>
+        <button class="pill-btn solid" onclick="openComposer('group')">New group</button>
+      </div>
+      <div class="search-input-lg" style="margin-bottom:16px">
+        <svg class="icon" viewBox="0 0 24 24" style="width:17px;height:17px"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input placeholder="Search groups">
+      </div>
+      <div class="groups-grid" id="groupsGrid"></div>
+    </section>
+
+    <!-- ============ PROFILE ============ -->
+    <section class="page" id="page-profile">
+      <div class="profile-cover">
+        <img class="profile-avatar" src="/avatar-2.png" alt="">
+      </div>
+      <div class="profile-head">
+        <div>
+          <h1>Naledi Dube</h1>
+          <p>Community organiser · Johannesburg, ZA</p>
+        </div>
+        <button class="pill-btn ghost" onclick="showToast('Edit profile — UI only')">Edit profile</button>
+      </div>
+      <div class="profile-stats">
+        <div><strong>128</strong>Posts</div>
+        <div><strong>3.4k</strong>Followers</div>
+        <div><strong>512</strong>Following</div>
+      </div>
+      <div class="profile-tabs">
+        <button class="active" data-ptab="posts" onclick="setProfileTab('posts')">Posts</button>
+        <button data-ptab="photos" onclick="setProfileTab('photos')">Photos</button>
+        <button data-ptab="about" onclick="setProfileTab('about')">About</button>
+      </div>
+      <div id="profilePosts"></div>
+      <div id="profilePhotos" style="display:none" class="photo-grid"></div>
+      <div id="profileAbout" style="display:none" class="about-list">
+        <div class="about-row"><svg class="icon" viewBox="0 0 24 24" style="width:17px;height:17px"><path d="M12 22s7-7.5 7-12a7 7 0 1 0-14 0c0 4.5 7 12 7 12Z"/></svg>Lives in Johannesburg, South Africa</div>
+        <div class="about-row"><svg class="icon" viewBox="0 0 24 24" style="width:17px;height:17px"><rect x="3" y="7" width="18" height="12" rx="2"/></svg>Works at Green City Collective</div>
+        <div class="about-row"><svg class="icon" viewBox="0 0 24 24" style="width:17px;height:17px"><circle cx="9" cy="8" r="3"/><path d="M2.5 20c0-3.3 2.9-6 6.5-6s6.5 2.7 6.5 6"/></svg>Member of 6 groups</div>
+        <div class="about-row"><svg class="icon" viewBox="0 0 24 24" style="width:17px;height:17px"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Joined Netizen in March 2023</div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ---------- DESKTOP RIGHT RAIL ---------- -->
+  <aside class="rightrail">
+    <div class="rail-card">
+      <h3>Suggested for you <a href="#" onclick="goto('groups');return false">See all</a></h3>
+      <div class="rail-row"><img class="avatar" src="https://i.pravatar.cc/60?img=33" width="38" height="38" alt=""><div class="meta"><div class="t1">Thabo Nkosi</div><div class="t2">Suggested friend</div></div><button class="pill-btn" style="padding:6px 12px" onclick="showToast('Friend request sent')">Add</button></div>
+      <div class="rail-row"><img class="avatar" src="https://i.pravatar.cc/60?img=41" width="38" height="38" alt=""><div class="meta"><div class="t1">Amahle Zulu</div><div class="t2">Suggested friend</div></div><button class="pill-btn" style="padding:6px 12px" onclick="showToast('Friend request sent')">Add</button></div>
+      <div class="rail-row"><img class="avatar" src="https://i.pravatar.cc/60?img=14" width="38" height="38" alt=""><div class="meta"><div class="t1">Kabelo Molefe</div><div class="t2">Suggested friend</div></div><button class="pill-btn" style="padding:6px 12px" onclick="showToast('Friend request sent')">Add</button></div>
+    </div>
+    <div class="rail-card">
+      <h3>Upcoming events</h3>
+      <div class="rail-row"><div class="group-icon" style="width:38px;height:38px;font-size:16px;background:var(--green-light)">📅</div><div class="meta"><div class="t1">Farmers Market</div><div class="t2">Sat · 8:00 AM</div></div></div>
+      <div class="rail-row"><div class="group-icon" style="width:38px;height:38px;font-size:16px;background:var(--green-light)">🌳</div><div class="meta"><div class="t1">Park Clean-up Drive</div><div class="t2">Sun · 9:00 AM</div></div></div>
+    </div>
+    <div class="rail-card">
+      <h3>Trending petitions</h3>
+      <div class="rail-row"><div class="meta"><div class="t1">Fix Main St potholes</div><div class="t2">4,213 signatures</div></div></div>
+      <div class="rail-row"><div class="meta"><div class="t1">More library hours</div><div class="t2">1,890 signatures</div></div></div>
+    </div>
+  </aside>
+</div>
+
+<!-- ================= BOTTOM NAV (mobile) ================= -->
+<nav class="bottomnav">
+  <button class="bn-item" data-page="search" onclick="goto('search')">
+    <svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Search
+  </button>
+  <button class="bn-item" data-page="funds" onclick="goto('funds')">
+    <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><circle cx="16.5" cy="14.5" r="1.2" fill="currentColor" stroke="none"/></svg>Funds
+  </button>
+  <button onclick="openSheet()" style="flex:1;display:flex;justify-content:center">
+    <span class="bn-post"><svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+  </button>
+  <button class="bn-item" data-page="petitions" onclick="goto('petitions')">
+    <svg class="icon" viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="16" rx="2"/><path d="M9 11h6M9 15h4"/></svg>Petitions
+  </button>
+  <button class="bn-item" data-page="jobs" onclick="goto('jobs')">
+    <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Jobs
+  </button>
+</nav>
+
+<!-- ================= POST BOTTOM SHEET ================= -->
+<div class="overlay" id="sheetOverlay" onclick="if(event.target===this)closeSheet()">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-grid">
+      <button class="sheet-item wide" onclick="openComposer('post')">
+        <span class="si-icon" style="background:var(--green);color:#fff"><svg class="icon" viewBox="0 0 24 24" style="width:20px;height:20px"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+        <span><span class="si-title">Make a post</span><br><span class="si-sub">Share your thoughts with the community</span></span>
+      </button>
+      <button class="sheet-item" onclick="openComposer('photo')">
+        <span class="si-icon" style="background:#e8f8ee;color:var(--green-dark)"><svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5-11 11"/></svg></span>
+        <span class="si-title">Upload photo</span><span class="si-sub">Share a photo</span>
+      </button>
+      <button class="sheet-item" onclick="openComposer('video')">
+        <span class="si-icon" style="background:#f1ecfd;color:var(--purple)"><svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m22 8-6 4 6 4Z"/></svg></span>
+        <span class="si-title">Upload video</span><span class="si-sub">Share a video</span>
+      </button>
+      <button class="sheet-item" onclick="openComposer('news')">
+        <span class="si-icon" style="background:#fdf1d6;color:var(--amber)"><svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M3 11v4a1 1 0 0 0 1 1h2l4 4V6l-4 4H4a1 1 0 0 0-1 1Z"/><path d="M15 8a4 4 0 0 1 0 8"/></svg></span>
+        <span class="si-title">Add news</span><span class="si-sub">Share important news</span>
+      </button>
+      <button class="sheet-item" onclick="goto('jobs');closeSheet();setTimeout(()=>openComposer('job'),200)">
+        <span class="si-icon" style="background:#e6eefd;color:var(--blue)"><svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span>
+        <span class="si-title">New job</span><span class="si-sub">Post a job opportunity</span>
+      </button>
+      <button class="sheet-item" onclick="goto('groups');closeSheet();setTimeout(()=>openComposer('group'),200)">
+        <span class="si-icon" style="background:#e8f8ee;color:var(--green-dark)"><svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px"><circle cx="9" cy="8" r="3"/><path d="M2.5 20c0-3.3 2.9-6 6.5-6s6.5 2.7 6.5 6"/><circle cx="17.5" cy="9" r="2.4"/></svg></span>
+        <span class="si-title">New group</span><span class="si-sub">Create a new group</span>
+      </button>
+      <button class="sheet-item" onclick="openComposer('notice')">
+        <span class="si-icon" style="background:#fdecef;color:var(--danger)"><svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M3 11v3a1 1 0 0 0 1 1h2l3.4 5.7a1 1 0 0 0 1.8-.9V16"/><path d="M3 11 17 5v14L3 13"/></svg></span>
+        <span class="si-title">Upload notice</span><span class="si-sub">Share a notice or announcement</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= DATA ================= */
+const posts = [
+  {name:"Lerato Mokoena",img:"/avatar-1.png",time:"2h ago",text:"Great turnout for our community clean-up today! Together we can keep our city beautiful. 💚",photo:"/post-1.png",likes:214,comments:38,shares:12},
+  {name:"Sipho Radebe",img:"/avatar-2.png",time:"4h ago",text:"Reminder: the Riverside Community Centre roof repair fund is 80% there — thank you to everyone who has contributed so far!",photo:"",likes:96,comments:14,shares:5},
+  {name:"Amahle Zulu",img:"/avatar-3.png",time:"6h ago",text:"New mural finished at the Clean City Initiative wall today. Swipe through to see the before and after 🎨",photo:"/post-2.png",likes:341,comments:52,shares:29},
+  {name:"Kabelo Molefe",img:"/avatar-1.png",time:"9h ago",text:"Looking for two volunteers to help set up chairs for Saturday's farmers market briefing. Comment if you're free!",photo:"",likes:58,comments:21,shares:3},
+  {name:"Naledi Dube",img:"/avatar-2.png",time:"1d ago",text:"Proud to share that our petition for extended library hours just crossed 1,800 signatures. Let's keep the momentum going!",photo:"/post-1.png",likes:412,comments:67,shares:44},
+];
+
+const videos = [
+  {title:"Highlights from the Community Garden Day",ch:"Netizen Community",img:"/video-thumb-1.png",dur:"3:24",meta:"12k views · 2d ago"},
+  {title:"How the Clean City Initiative started",ch:"Clean City Initiative",img:"/video-thumb-2.png",dur:"6:12",meta:"8.4k views · 4d ago"},
+  {title:"Sports Hub weekend tournament recap",ch:"Sports Hub",img:"/video-thumb-1.png",dur:"2:47",meta:"5.1k views · 5d ago"},
+  {title:"Behind the scenes: new mural project",ch:"Amahle Zulu",img:"/video-thumb-2.png",dur:"4:03",meta:"3.9k views · 1w ago"},
+  {title:"City council Q&A — road repairs update",ch:"Netizen News",img:"/video-thumb-1.png",dur:"9:58",meta:"22k views · 1w ago"},
+  {title:"Farmers market vendor spotlight",ch:"Local Events",img:"/video-thumb-2.png",dur:"1:58",meta:"1.6k views · 2w ago"},
+];
+
+const conversations = [
+  {name:"Lerato Mokoena",img:"/avatar-1.png",last:"See you at the clean-up tomorrow!",time:"2m",unread:true,status:"Active now",
+    msgs:[["them","Hey! Are you joining the clean-up drive tomorrow?"],["me","Yes, wouldn't miss it 💚"],["them","Awesome, see you at 8am by the fountain"],["them","See you at the clean-up tomorrow!"]]},
+  {name:"Clean City Initiative",img:"",init:"CC",last:"Thanks for signing up as a volunteer",time:"38m",unread:true,status:"Group · 8.7k members",
+    msgs:[["them","Thanks for signing up as a volunteer for Saturday!"],["me","Happy to help, what time should I arrive?"],["them","8:30 AM at Riverside Park, look for the green tent"]]},
+  {name:"Sipho Radebe",img:"/avatar-2.png",last:"You: Sent the fundraiser link",time:"1h",unread:true,status:"Active 20m ago",
+    msgs:[["them","Did you see the roof repair fund update?"],["me","Yes! 80% there already"],["me","Sent the fundraiser link"]]},
+  {name:"Amahle Zulu",img:"/avatar-3.png",last:"The mural turned out amazing 🎨",time:"3h",unread:false,status:"Active 1h ago",
+    msgs:[["them","Come check out the finished mural!"],["me","On my way, looks incredible from the photos"],["them","The mural turned out amazing 🎨"]]},
+  {name:"Kabelo Molefe",img:"/avatar-1.png",last:"Sounds good, thanks!",time:"1d",unread:false,status:"Active 5h ago",
+    msgs:[["me","Can you help set up chairs Saturday morning?"],["them","Sure thing, what time?"],["me","7:30am, market opens at 8"],["them","Sounds good, thanks!"]]},
+];
+
+const notifications = {
+  new:[
+    {icon:"heart",color:"var(--danger)",bg:"#fdecef",text:"<b>Lerato Mokoena</b> liked your post about the community clean-up",time:"5 minutes ago"},
+    {icon:"comment",color:"var(--blue)",bg:"#e6eefd",text:"<b>Sipho Radebe</b> commented: \"This is fantastic news!\"",time:"22 minutes ago"},
+    {icon:"users",color:"var(--green-dark)",bg:"var(--green-light)",text:"<b>Clean City Initiative</b> posted a new update in the group",time:"1 hour ago"},
+  ],
+  old:[
+    {icon:"briefcase",color:"var(--blue)",bg:"#e6eefd",text:"New job matching your profile: <b>Community Outreach Coordinator</b>",time:"Yesterday"},
+    {icon:"clipboard",color:"var(--green-dark)",bg:"var(--green-light)",text:"The petition <b>\"Fix Main St potholes\"</b> reached 4,000 signatures",time:"2 days ago"},
+    {icon:"users",color:"var(--amber)",bg:"#fdf1d6",text:"<b>Amahle Zulu</b> invited you to join <b>Sports Hub</b>",time:"3 days ago"},
+    {icon:"car",color:"var(--gray-600)",bg:"var(--bg)",text:"Your ride receipt for R64.00 is ready",time:"4 days ago"},
+  ]
+};
+
+const rideOptions = [
+  {emoji:"🚗",name:"Economy",sub:"Affordable, everyday rides",price:"R42",eta:"3 min away"},
+  {emoji:"🚙",name:"Comfort",sub:"Newer cars, extra legroom",price:"R68",eta:"5 min away"},
+  {emoji:"🚐",name:"XL",sub:"Up to 6 seats",price:"R95",eta:"7 min away"},
+];
+
+const petitions = [
+  {tag:"Infrastructure",title:"Fix Main St potholes before winter",text:"Multiple accidents have been reported near the Main St / 5th Ave intersection. We're asking the city council to prioritise repairs this quarter.",goal:6000,signed:4213},
+  {tag:"Community",title:"Extend Riverside Library opening hours",text:"Students and shift workers need access beyond 5pm. Sign to support extended weekday and weekend hours.",goal:2500,signed:1890},
+  {tag:"Environment",title:"Add recycling bins to all city parks",text:"Only 3 of our 14 public parks currently have recycling facilities. Let's change that together.",goal:3000,signed:1120},
+  {tag:"Safety",title:"Install streetlights on Baobab Avenue",text:"Residents have reported several near-misses at night due to poor lighting along Baobab Avenue.",goal:1500,signed:980},
+];
+
+const jobs = [
+  {co:"Green City Collective",role:"Community Outreach Coordinator",loc:"Johannesburg · Hybrid",tags:["Full-time","Remote"],time:"2d ago",color:"#1c8f47"},
+  {co:"Clean City Initiative",role:"Volunteer Programs Manager",loc:"Johannesburg · On-site",tags:["Full-time"],time:"3d ago",color:"#2a6fe0"},
+  {co:"Sports Hub",role:"Events &amp; Facilities Assistant",loc:"Sandton · Part-time",tags:["Part-time"],time:"4d ago",color:"#e08a1f"},
+  {co:"Netizen News",role:"Local Reporter (Freelance)",loc:"Remote",tags:["Remote","Part-time"],time:"6d ago",color:"#7c4fe0"},
+  {co:"Riverside Community Centre",role:"Front Desk &amp; Bookings",loc:"Riverside · On-site",tags:["Full-time"],time:"1w ago",color:"#e0455f"},
+];
+
+const groups = [
+  {icon:"👨‍👩‍👧",bg:"#fdf1d6",name:"Community Group",members:"20.3k members",desc:"A space for neighbours to connect, share updates and support one another.",joined:true},
+  {icon:"🏙️",bg:"#dcefe3",name:"Clean City Initiative",members:"8.7k members",desc:"Organising clean-up drives and beautification projects across the city.",joined:true},
+  {icon:"⚽",bg:"#ffe4d6",name:"Sports Hub",members:"15.1k members",desc:"Weekend leagues, tournaments and pick-up games for every sport.",joined:false},
+  {icon:"📚",bg:"#e6eefd",name:"Riverside Book Club",members:"2.1k members",desc:"Monthly reads, discussions and author events at the community library.",joined:false},
+  {icon:"🌱",bg:"#e8f8ee",name:"Urban Gardeners",members:"6.4k members",desc:"Tips, swaps and volunteer days for community and rooftop gardens.",joined:true},
+  {icon:"🎨",bg:"#f1ecfd",name:"Street Art Collective",members:"3.8k members",desc:"Celebrating and organising public mural and art projects.",joined:false},
+];
+
+/* ================= ICONS lookup ================= */
+const iconPaths = {
+  heart:'<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.6Z"/>',
+  comment:'<path d="M21 11.5A8.4 8.4 0 0 1 9.3 19.4L4 21l1.7-4.9A8.4 8.4 0 1 1 21 11.5Z"/>',
+  users:'<circle cx="9" cy="8" r="3"/><path d="M2.5 20c0-3.3 2.9-6 6.5-6s6.5 2.7 6.5 6"/><circle cx="17.5" cy="9" r="2.4"/>',
+  briefcase:'<rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  clipboard:'<rect x="6" y="4" width="12" height="16" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M9 11h6M9 15h4"/>',
+  car:'<path d="M3 16h1m16 0h1M5 16l1.5-5A2 2 0 0 1 8.4 9.6h7.2a2 2 0 0 1 1.9 1.4L19 16"/><rect x="3" y="16" width="18" height="4" rx="1.4"/>'
+};
+function iconSvg(name,size=18){return `<svg class="icon" viewBox="0 0 24 24" style="width:${size}px;height:${size}px">${iconPaths[name]||''}</svg>`;}
+
+/* ================= RENDER ================= */
+function renderFeed(){
+  document.getElementById('feedPosts').innerHTML = posts.map((p,i)=>`
+    <div class="post-card">
+      <div class="post-head">
+        <img class="avatar" src="${p.img}" width="42" height="42" alt="">
+        <div class="who"><div class="pname">${p.name}</div><div class="ptime">${p.time} · 🌍 Public</div></div>
+        <button class="icon-btn" onclick="showToast('More options')"><svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></button>
+      </div>
+      <div class="post-body">${p.text}</div>
+      ${p.photo?`<div class="post-media"><img src="${p.photo}" alt=""></div>`:""}
+      <div class="post-stats"><span>❤️ ${p.likes} likes</span><span>${p.comments} comments · ${p.shares} shares</span></div>
+      <div class="post-actions">
+        <button class="abtn" onclick="toggleLike(this,${i})"><svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px">${iconPaths.heart}</svg>Like</button>
+        <button class="abtn" onclick="showToast('Comments — UI only')"><svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px">${iconPaths.comment}</svg>Comment</button>
+        <button class="abtn" onclick="showToast('Post shared')"><svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5 8.6 10.5"/></svg>Share</button>
+      </div>
+    </div>`).join('');
+}
+function toggleLike(btn,i){
+  btn.classList.toggle('liked');
+  const card = btn.closest('.post-card');
+  const stat = card.querySelector('.post-stats span');
+  posts[i].likes += btn.classList.contains('liked') ? 1 : -1;
+  stat.textContent = `❤️ ${posts[i].likes} likes`;
+}
+
+function renderVideos(){
+  document.getElementById('videoGrid').innerHTML = videos.map(v=>`
+    <div class="video-card" onclick="showToast('Playing: ${v.title.replace(/'/g,"&#39;")}')">
+      <div class="video-thumb"><img src="${v.img}" alt=""><div class="video-play"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="11" fill="rgba(0,0,0,.0)"/><path d="M9.5 7.5v9l8-4.5Z"/></svg></div><span class="video-dur">${v.dur}</span></div>
+      <div class="video-info"><div class="vt"><div class="vtitle">${v.title}</div><div class="vmeta">${v.ch} · ${v.meta}</div></div></div>
+    </div>`).join('');
+}
+
+function renderConversations(){
+  document.getElementById('convItems').innerHTML = conversations.map((c,i)=>`
+    <div class="conv-item" data-idx="${i}" onclick="openChat(${i})">
+      ${c.img?`<img class="avatar" src="${c.img}" width="46" height="46" alt="">`:`<div class="avatar-fallback" style="width:46px;height:46px;font-size:15px">${c.init}</div>`}
+      <div class="cmeta">
+        <div class="cname">${c.name}<span class="time">${c.time}</span></div>
+        <div class="clast">${c.last}</div>
+      </div>
+      ${c.unread?'<span class="unread-dot"></span>':''}
+    </div>`).join('');
+}
+function openChat(i){
+  const c = conversations[i];
+  document.querySelectorAll('.conv-item').forEach(el=>el.classList.remove('active'));
+  document.querySelector(`.conv-item[data-idx="${i}"]`).classList.remove('unread' /*noop*/);
+  document.querySelector(`.conv-item[data-idx="${i}"]`).classList.add('active');
+  const dot = document.querySelector(`.conv-item[data-idx="${i}"] .unread-dot`);
+  if(dot) dot.remove();
+  c.unread = false;
+  document.getElementById('chatPanel').innerHTML = `
+    <div class="chat-head">
+      <button class="icon-btn chat-back" onclick="closeChat()"><svg class="icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+      ${c.img?`<img class="avatar" src="${c.img}" width="40" height="40" alt="">`:`<div class="avatar-fallback" style="width:40px;height:40px;font-size:13px">${c.init}</div>`}
+      <div class="who"><div class="cn">${c.name}</div><div class="cs">${c.status}</div></div>
+      <button class="icon-btn"><svg class="icon" viewBox="0 0 24 24" style="width:19px;height:19px"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.7a2 2 0 0 1-.5 2.1L8 9.7a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.5 2.7.6a2 2 0 0 1 1.7 2Z"/></svg></button>
+    </div>
+    <div class="chat-body" id="chatBody">${c.msgs.map(m=>`<div class="bubble ${m[0]==='me'?'me':'them'}">${m[1]}</div>`).join('')}</div>
+    <div class="chat-input">
+      <button class="icon-btn"><svg class="icon" viewBox="0 0 24 24" style="width:19px;height:19px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5-11 11"/></svg></button>
+      <input id="chatInput" placeholder="Type a message…" onkeydown="if(event.key==='Enter')sendMsg(${i})">
+      <button class="send-btn" onclick="sendMsg(${i})"><svg viewBox="0 0 24 24" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="m3 3 18 9-18 9 4-9Z"/></svg></button>
+    </div>`;
+  document.getElementById('messagesShell').classList.add('chat-open');
+  const body = document.getElementById('chatBody'); body.scrollTop = body.scrollHeight;
+}
+function closeChat(){document.getElementById('messagesShell').classList.remove('chat-open');}
+function sendMsg(i){
+  const input = document.getElementById('chatInput');
+  if(!input.value.trim())return;
+  conversations[i].msgs.push(['me',input.value.trim()]);
+  const body = document.getElementById('chatBody');
+  body.insertAdjacentHTML('beforeend',`<div class="bubble me">${input.value.trim()}</div>`);
+  input.value='';
+  body.scrollTop = body.scrollHeight;
+}
+
+function renderNotifications(){
+  document.getElementById('notifNew').innerHTML = notifications.new.map(n=>`
+    <div class="notif-item unread"><div class="notif-icon" style="background:${n.bg};color:${n.color}">${iconSvg(n.icon,19)}</div><div class="notif-text">${n.text}<div class="notif-time">${n.time}</div></div><span class="unread-dot"></span></div>`).join('');
+  document.getElementById('notifOld').innerHTML = notifications.old.map(n=>`
+    <div class="notif-item"><div class="notif-icon" style="background:${n.bg};color:${n.color}">${iconSvg(n.icon,19)}</div><div class="notif-text">${n.text}<div class="notif-time">${n.time}</div></div></div>`).join('');
+}
+function markAllRead(){document.querySelectorAll('.notif-item.unread').forEach(el=>el.classList.remove('unread'));document.querySelectorAll('#notifNew .unread-dot').forEach(el=>el.remove());showToast('All notifications marked as read');}
+
+function renderRideOptions(){
+  document.getElementById('rideOptions').innerHTML = rideOptions.map((r,i)=>`
+    <div class="ride-option ${i===0?'selected':''}" data-idx="${i}" onclick="selectRide(${i})">
+      <div class="ride-emoji">${r.emoji}</div>
+      <div class="rinfo"><div class="rname">${r.name}</div><div class="rsub">${r.sub}</div></div>
+      <div><div class="rprice">${r.price}</div><div class="reta">${r.eta}</div></div>
+    </div>`).join('');
+}
+function selectRide(i){document.querySelectorAll('.ride-option').forEach(el=>el.classList.remove('selected'));document.querySelector(`.ride-option[data-idx="${i}"]`).classList.add('selected');}
+function bookRide(){
+  const banner = document.getElementById('rideConfirm');
+  banner.style.display='flex';
+  showToast('Ride booked!');
+}
+
+function renderPetitions(){
+  document.getElementById('petitionList').innerHTML = petitions.map((p,i)=>{
+    const pct = Math.min(100,Math.round(p.signed/p.goal*100));
+    return `<div class="petition-card">
+      <span class="ptag">${p.tag}</span>
+      <h3>${p.title}</h3>
+      <p>${p.text}</p>
+      <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+      <div class="petition-foot"><span><strong>${p.signed.toLocaleString()}</strong> of ${p.goal.toLocaleString()} signatures</span>
+      <button class="pill-btn solid" id="sign-${i}" onclick="signPetition(${i})">Sign</button></div>
+    </div>`;
+  }).join('');
+}
+function signPetition(i){
+  const btn = document.getElementById('sign-'+i);
+  petitions[i].signed++;
+  btn.textContent='Signed ✓'; btn.disabled=true; btn.classList.add('ghost');
+  renderPetitions_updateBar(i);
+  showToast('Thanks for signing!');
+}
+function renderPetitions_updateBar(i){
+  const cards = document.querySelectorAll('.petition-card');
+  const p = petitions[i];
+  const pct = Math.min(100,Math.round(p.signed/p.goal*100));
+  cards[i].querySelector('.progress-fill').style.width = pct+'%';
+  cards[i].querySelector('.petition-foot strong').textContent = p.signed.toLocaleString();
+}
+
+function renderJobs(filter='all'){
+  const list = jobs.filter(j=>filter==='all'||j.tags.includes(filter));
+  document.getElementById('jobList').innerHTML = list.map((j,i)=>`
+    <div class="job-card">
+      <div class="job-logo" style="background:${j.color}">${j.co[0]}</div>
+      <div class="job-info">
+        <h3>${j.role}</h3>
+        <div class="jco">${j.co} · ${j.loc}</div>
+        <div class="job-tags">${j.tags.map(t=>`<span class="job-tag">${t}</span>`).join('')}</div>
+        <div class="job-foot"><span class="jtime">${j.time}</span><button class="pill-btn solid" onclick="applyJob(this)">Apply</button></div>
+      </div>
+    </div>`).join('') || `<p style="color:var(--gray-600);font-size:14px;padding:20px 4px">No jobs match this filter.</p>`;
+}
+function applyJob(btn){btn.textContent='Applied ✓';btn.disabled=true;btn.classList.add('ghost');showToast('Application submitted');}
+
+function renderGroups(){
+  document.getElementById('groupsGrid').innerHTML = groups.map((g,i)=>`
+    <div class="group-card2">
+      <div class="group-cover" style="background:linear-gradient(135deg,${g.bg},#ffffff)"><div class="g-icon-lg" style="background:${g.bg}">${g.icon}</div></div>
+      <div class="group-card2-body">
+        <h3>${g.name}</h3><div class="gmeta">${g.members}</div><p>${g.desc}</p>
+        <button class="pill-btn ${g.joined?'ghost':'solid'}" id="join-${i}" onclick="toggleJoin(${i})">${g.joined?'Joined':'Join group'}</button>
+      </div>
+    </div>`).join('');
+}
+function toggleJoin(i){
+  groups[i].joined = !groups[i].joined;
+  const btn = document.getElementById('join-'+i);
+  btn.textContent = groups[i].joined?'Joined':'Join group';
+  btn.classList.toggle('ghost',groups[i].joined);
+  btn.classList.toggle('solid',!groups[i].joined);
+  showToast(groups[i].joined?'Joined group':'Left group');
+}
+
+function renderProfilePosts(){
+  document.getElementById('profilePosts').innerHTML = posts.filter(p=>p.name==='Naledi Dube').concat(posts.slice(0,2)).map(p=>`
+    <div class="post-card">
+      <div class="post-head"><img class="avatar" src="${p.img}" width="42" height="42" alt=""><div class="who"><div class="pname">${p.name}</div><div class="ptime">${p.time}</div></div></div>
+      <div class="post-body">${p.text}</div>
+      ${p.photo?`<div class="post-media"><img src="${p.photo}" alt=""></div>`:""}
+    </div>`).join('');
+  document.getElementById('profilePhotos').innerHTML = ['g1','g2','g3','g4','g5','g6'].map(s=>`<img src="https://picsum.photos/seed/${s}/300/300" alt="">`).join('');
+}
+
+/* ================= NAV / PAGE SWITCHING ================= */
+function goto(page){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  document.querySelectorAll('[data-page]').forEach(el=>el.classList.toggle('active', el.dataset.page===page));
+  window.scrollTo({top:0,behavior:'smooth'});
+  closeSheet();
+}
+
+/* ================= SHEET / COMPOSER ================= */
+function openSheet(){document.getElementById('sheetOverlay').classList.add('show');}
+function closeSheet(){document.getElementById('sheetOverlay').classList.remove('show');}
+function openComposer(type){
+  closeSheet();
+  const titles = {post:"Create post",photo:"Upload photo",video:"Upload video",news:"Add news",job:"New job",group:"New group",notice:"Upload notice"};
+  document.getElementById('composerTitle').textContent = titles[type]||"Create post";
+  document.getElementById('composerText').value='';
+  document.getElementById('composerText').placeholder = type==='news' ? "Share the latest news with your community…" : type==='notice' ? "Write your notice or announcement…" : "What's on your mind?";
+  document.getElementById('composerImgPreview').innerHTML='';
+  goto('post');
+}
+function composerAttach(kind){
+  if(kind==='photo'){
+    document.getElementById('composerImgPreview').innerHTML = `<div class="post-media" style="margin-top:10px"><img src="https://picsum.photos/seed/upload${Date.now()%50}/700/400" alt=""></div>`;
+    showToast('Photo attached');
+  } else if(kind==='video'){
+    document.getElementById('composerImgPreview').innerHTML = `<div class="post-media" style="margin-top:10px;position:relative"><img src="https://picsum.photos/seed/videoup/700/400" alt=""><div class="video-play" style="position:absolute;inset:0"><svg viewBox="0 0 24 24" fill="#fff" style="width:46px;height:46px"><path d="M9.5 7.5v9l8-4.5Z"/></svg></div></div>`;
+    showToast('Video attached');
+  } else {
+    showToast(kind.charAt(0).toUpperCase()+kind.slice(1)+' added');
+  }
+}
+function submitPost(){
+  const text = document.getElementById('composerText').value.trim();
+  if(!text){showToast('Write something first');return;}
+  posts.unshift({name:"Naledi Dube",img:"https://i.pravatar.cc/100?img=12",time:"Just now",text:text,photo:document.querySelector('#composerImgPreview img')?document.querySelector('#composerImgPreview img').src:"",likes:0,comments:0,shares:0});
+  renderFeed();
+  showToast('Posted to your feed');
+  goto('feed');
+}
+
+/* ================= SEARCH ================= */
+const searchIndex = [
+  ...groups.map(g=>({type:'groups',name:g.name,sub:g.members,tag:'Group'})),
+  {type:'people',name:'Lerato Mokoena',sub:'Community organiser',tag:'Person'},
+  {type:'people',name:'Sipho Radebe',sub:'Volunteer coordinator',tag:'Person'},
+  {type:'people',name:'Amahle Zulu',sub:'Local artist',tag:'Person'},
+  ...jobs.map(j=>({type:'jobs',name:j.role,sub:j.co+' · '+j.loc,tag:'Job'})),
+];
+let activeSearchTab='all';
+function renderSearch(query=''){
+  const q = query.toLowerCase();
+  const results = searchIndex.filter(r=>(activeSearchTab==='all'||r.type===activeSearchTab) && (r.name.toLowerCase().includes(q)||r.sub.toLowerCase().includes(q)));
+  document.getElementById('searchResults').innerHTML = results.length ? results.map(r=>`
+    <div class="result-row">
+      <div class="avatar-fallback" style="width:44px;height:44px;font-size:15px">${r.name[0]}</div>
+      <div class="rmeta"><div class="rname">${r.name}</div><div class="rsub">${r.sub}</div></div>
+      <span class="rtag">${r.tag}</span>
+    </div>`).join('') : `<p style="color:var(--gray-600);font-size:14px;padding:20px 4px">No results found.</p>`;
+}
+function filterSearch(v){
+  document.getElementById('searchBox').value = v;
+  goto('search');
+  renderSearch(v);
+}
+document.getElementById('searchTabs').addEventListener('click',e=>{
+  const btn = e.target.closest('.tab'); if(!btn)return;
+  document.querySelectorAll('#searchTabs .tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active'); activeSearchTab = btn.dataset.tab;
+  renderSearch(document.getElementById('searchBox').value);
+});
+
+document.querySelector('.job-chips').addEventListener('click',e=>{
+  const btn = e.target.closest('.tab'); if(!btn)return;
+  document.querySelectorAll('.job-chips .tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active'); renderJobs(btn.dataset.jobtab);
+});
+
+/* ================= FUNDS ================= */
+let balance = 1248.50;
+function toggleAddFunds(){
+  const f = document.getElementById('addFundsForm');
+  f.style.display = f.style.display==='flex'?'none':'flex';
+}
+function addFunds(){
+  const input = document.getElementById('addFundsInput');
+  const val = parseFloat(input.value);
+  if(!val || val<=0){showToast('Enter a valid amount');return;}
+  balance += val;
+  document.getElementById('balanceAmt').textContent = 'R'+balance.toLocaleString(undefined,{minimumFractionDigits:2});
+  input.value='';
+  document.getElementById('addFundsForm').style.display='none';
+  showToast('R'+val.toFixed(2)+' added to your wallet');
+}
+
+/* ================= PROFILE TABS ================= */
+function setProfileTab(tab){
+  document.querySelectorAll('.profile-tabs button').forEach(b=>b.classList.toggle('active',b.dataset.ptab===tab));
+  document.getElementById('profilePosts').style.display = tab==='posts'?'block':'none';
+  document.getElementById('profilePhotos').style.display = tab==='photos'?'grid':'none';
+  document.getElementById('profileAbout').style.display = tab==='about'?'flex':'none';
+}
+
+/* ================= MISC ================= */
+function toggleSidebarMenu(){showToast('Menu — UI only');}
+let toastTimer;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+/* ================= INIT ================= */
+renderFeed();
+renderVideos();
+renderConversations();
+renderNotifications();
+renderRideOptions();
+renderPetitions();
+renderJobs();
+renderGroups();
+renderProfilePosts();
+renderSearch();
+</script>
+</body>
+</html>

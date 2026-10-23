@@ -1,0 +1,521 @@
+"use client";
+import Link from "next/link";
+import { Heart, MessageCircle, MoreHorizontal, Send } from "lucide-react";
+import { useEffect, useState } from "react";
+import { groups, stories } from "@/lib/netizen-data";
+import { Avatar } from "./app-shell";
+import { PostDetailModal } from "./post-detail-modal";
+
+type FeedPost = {
+  id?: string;
+  _id?: string;
+  content?: string;
+  images?: string[] | null;
+  userId?: string;
+  userName?: string | null;
+  userImage?: string | null;
+  likes?: number;
+  comments?: number;
+  shares?: number;
+  likedBy?: string[];
+  createdAt?: string | Date;
+};
+
+export function Section({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mt-8">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="m-0 text-sm text-slate-500 tracking-wide">{title}</h2>
+        {action && (
+          <button className="border-0 bg-transparent text-emerald-700 font-bold">{action}</button>
+        )}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function formatRelativeTime(value?: string | Date) {
+  if (!value) return "Just now";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Just now";
+  }
+
+  const diffMinutes = Math.max(1, Math.round((Date.now() - date.getTime()) / 60000));
+
+  if (diffMinutes < 60) {
+    return `${diffMinutes} min`;
+  }
+
+  const diffHours = Math.round(diffMinutes / 60);
+
+  if (diffHours < 24) {
+    return `${diffHours} hr`;
+  }
+
+  const diffDays = Math.round(diffHours / 24);
+
+  return `${diffDays} day${diffDays === 1 ? "" : "s"}`;
+}
+
+export function Feed({ onCreate }: { onCreate: () => void }) {
+  const [posts, setPosts] = useState<FeedPost[]>([]);
+  const [statuses, setStatuses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [commentingId, setCommentingId] = useState<string | null>(null);
+  const [selectedPost, setSelectedPost] = useState<FeedPost | null>(null);
+  const [postLikes, setPostLikes] = useState<Record<string, { likes: number; hasLiked: boolean }>>({});
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    function handleResize() {
+      setIsMobile(window.innerWidth < 768);
+    }
+
+    window.addEventListener("resize", handleResize);
+    handleResize(); // Call on mount
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    async function loadSession() {
+      try {
+        const response = await fetch("/api/auth/get-session", {
+          method: "GET",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        if (!response.ok) {
+          setSessionUserId(null);
+          return;
+        }
+
+        const data = await response.json();
+        setSessionUserId(data?.user?.id ?? null);
+      } catch (err) {
+        console.error("Failed to load session for feed:", err);
+        setSessionUserId(null);
+      }
+    }
+
+    async function loadPosts() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const response = await fetch("/api/posts", {
+          cache: "no-store",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data?.message || "Failed to load posts");
+        }
+
+        setPosts(Array.isArray(data.posts) ? data.posts : []);
+      } catch (err) {
+        console.error("Failed to load posts:", err);
+        setError(err instanceof Error ? err.message : "Failed to load posts");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    async function loadStatuses() {
+      try {
+        const response = await fetch("/api/statuses", {
+          cache: "no-store",
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.statuses) {
+          setStatuses(data.statuses);
+        }
+      } catch (err) {
+        console.error("Failed to load statuses:", err);
+      }
+    }
+
+    loadSession();
+    loadPosts();
+    loadStatuses();
+  }, []);
+
+  function getPostId(post: FeedPost) {
+    return String(post.id ?? post._id ?? "");
+  }
+
+  function updatePost(postId: string, nextPost: Partial<FeedPost>) {
+    setPosts((currentPosts) =>
+      currentPosts.map((post) => {
+        const currentId = getPostId(post);
+        return currentId === postId ? { ...post, ...nextPost } : post;
+      }),
+    );
+  }
+
+  async function handleLike(post: FeedPost) {
+    const postId = getPostId(post);
+
+    if (!postId) return;
+
+    if (!sessionUserId) {
+      setError("Please sign in to like posts.");
+      return;
+    }
+
+    // Optimistic update
+    const wasLiked = postLikes[postId]?.hasLiked ?? post.likedBy?.includes(sessionUserId) ?? false;
+    const currentLikes = postLikes[postId]?.likes ?? post.likes ?? 0;
+    
+    setPostLikes(prev => ({
+      ...prev,
+      [postId]: {
+        likes: wasLiked ? currentLikes - 1 : currentLikes + 1,
+        hasLiked: !wasLiked
+      }
+    }));
+
+    try {
+      const response = await fetch(`/api/posts/${postId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "like" }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.message || "Unable to update like");
+      }
+
+      const likedBy = Array.isArray(data?.post?.likedBy) ? data.post.likedBy : post.likedBy ?? [];
+      const likes = typeof data?.post?.likes === "number" ? data.post.likes : post.likes ?? 0;
+
+      updatePost(postId, { likedBy, likes });
+      setPostLikes(prev => ({
+        ...prev,
+        [postId]: {
+          likes,
+          hasLiked: likedBy.includes(sessionUserId)
+        }
+      }));
+      setError("");
+    } catch (err) {
+      console.error("Like failed:", err);
+      // Revert optimistic update
+      setPostLikes(prev => ({
+        ...prev,
+        [postId]: {
+          likes: currentLikes,
+          hasLiked: wasLiked
+        }
+      }));
+      setError(err instanceof Error ? err.message : "Unable to update like");
+    }
+  }
+
+  async function handleComment(post: FeedPost) {
+    const postId = getPostId(post);
+    const draft = (commentDrafts[postId] ?? "").trim();
+
+    if (!postId || !draft) return;
+
+    if (!sessionUserId) {
+      setError("Please sign in to comment on posts.");
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/posts/${postId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "comment", comment: draft }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.message || "Unable to post comment");
+      }
+
+      const comments = typeof data?.post?.comments === "number" ? data.post.comments : post.comments ?? 0;
+      updatePost(postId, { comments });
+      setCommentDrafts((current) => ({ ...current, [postId]: "" }));
+      setCommentingId(null);
+      setError("");
+    } catch (err) {
+      console.error("Comment failed:", err);
+      setError(err instanceof Error ? err.message : "Unable to post comment");
+    }
+  }
+
+  async function handleShare(post: FeedPost) {
+    const postId = getPostId(post);
+
+    if (!postId) return;
+
+    const shareUrl = `${window.location.origin}/posts/${postId}`;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Netizen post",
+          text: post.content || "Check out this post",
+          url: shareUrl,
+        });
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl);
+      }
+    } catch (err) {
+      console.warn("Share attempt failed, still retrying with clipboard fallback:", err);
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl).catch(() => undefined);
+      }
+    }
+
+    try {
+      const response = await fetch(`/api/posts/${postId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "share" }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.message || "Unable to share post");
+      }
+
+      const shares = typeof data?.post?.shares === "number" ? data.post.shares : post.shares ?? 0;
+      updatePost(postId, { shares });
+      setError("");
+    } catch (err) {
+      console.error("Share failed:", err);
+      setError(err instanceof Error ? err.message : "Unable to share post");
+    }
+  }
+
+  return (
+    <div className="max-w-[880px] mx-auto">
+      {!isMobile && (
+        <button
+          className="flex items-center gap-[15px] w-full py-[18px] px-[22px] border border-gray-200 rounded-[26px] bg-white shadow-[0_4px_15px_rgba(25,58,45,0.05)] text-[#8b9b9e] text-left"
+          onClick={onCreate}
+        >
+          <Avatar src="/avatar-2.png" alt="Naledi Dube" />
+          <span className="flex-1 px-[13px] py-[13px] rounded-[30px] bg-[var(--canvas)] text-base">Share your thoughts with the community...</span>
+        </button>
+      )}
+
+      {error && (
+        <div className="mb-4 rounded-2xl border border-[#f3d7d0] bg-[#fff4f1] px-3 py-2 text-sm text-[#7f362f] transition-all duration-300" style={{ display: error ? 'block' : 'none' }}>
+          {error}
+        </div>
+      )}
+
+      <Section title="ADDED NETIZENS STATUS">
+        <div className="flex gap-3 overflow-x-auto">
+          {statuses.length > 0 ? (
+            statuses.map((status) => (
+              <button key={status.id || status._id} className="relative min-w-[188px] h-[262px] rounded-[17px] overflow-hidden p-0 border-0 bg-[#20342d] text-white text-left">
+                <img src={status.image} alt={status.title} className="w-full h-full object-cover filter brightness-[0.75]" />
+                <div className="absolute left-0 right-0 top-[45%] bottom-0 bg-gradient-to-b from-transparent to-black/80" />
+                <span className="absolute top-3 left-3 px-3 py-2 rounded-[22px] bg-emerald-500 font-bold z-10">{status.tag || 'Update'}</span>
+                <strong className="absolute left-3 right-3 bottom-4 text-lg leading-tight z-10">{status.title}</strong>
+              </button>
+            ))
+          ) : (
+            stories.map((story) => (
+              <button key={story.title} className="relative min-w-[188px] h-[262px] rounded-[17px] overflow-hidden p-0 border-0 bg-[#20342d] text-white text-left">
+                <img src={story.image} alt={story.title} className="w-full h-full object-cover filter brightness-[0.75]" />
+                <div className="absolute left-0 right-0 top-[45%] bottom-0 bg-gradient-to-b from-transparent to-black/80" />
+                <span className="absolute top-3 left-3 px-3 py-2 rounded-[22px] bg-emerald-500 font-bold z-10">{story.tag}</span>
+                <strong className="absolute left-3 right-3 bottom-4 text-lg leading-tight z-10">{story.title}</strong>
+              </button>
+            ))
+          )}
+        </div>
+      </Section>
+
+      <Section title="GROUPS" action="See all">
+        <div className="flex flex-col gap-3">
+          {groups.map((group) => (
+            <button key={group.name} className="flex items-center gap-4 w-full p-4 border border-gray-200 rounded-[17px] bg-white shadow-[0_3px_12px_rgba(25,58,45,0.03)] text-left">
+              <Avatar src={group.image} alt={group.name} className="w-[58px] h-[58px] rounded-[14px] object-cover" />
+              <div>
+                <b className="block text-base">{group.name}</b>
+                <span className="block mt-1 text-sm text-slate-500">{group.members}</span>
+              </div>
+              <div className="flex items-center ml-auto">
+                <Avatar src="/avatar-1.png" alt="" className="w-7 h-7 rounded-full -ml-2 border-2 border-white object-cover" />
+                <Avatar src="/avatar-2.png" alt="" className="w-7 h-7 rounded-full -ml-2 border-2 border-white object-cover" />
+                <Avatar src="/avatar-3.png" alt="" className="w-7 h-7 rounded-full -ml-2 border-2 border-white object-cover" />
+                <i className="grid place-items-center w-10 h-10 ml-1 rounded-full bg-emerald-100 text-emerald-700 font-bold">{group.more}</i>
+              </div>
+            </button>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="RECENT POSTS">
+        {loading ? (
+          <div className="rounded-2xl border border-[#edf3ee] bg-white p-5 text-sm text-[#5b6b62]">Loading posts...</div>
+        ) : (
+          <div className="flex flex-col gap-3.5">
+            {posts.map((post) => {
+              const postId = getPostId(post);
+              const imageList = Array.isArray(post.images)
+                ? post.images.filter((image): image is string => typeof image === "string" && image.trim().length > 0)
+                : [];
+              const isLiked = Boolean(
+                sessionUserId && Array.isArray(post.likedBy) && post.likedBy.includes(sessionUserId),
+              );
+
+              return (
+                <article key={postId || `${post.userName ?? "post"}-${post.createdAt ?? Math.random()}`} className="p-5 border border-gray-200 rounded-[18px] bg-white">
+                  <div className="flex items-center gap-3">
+                    <Avatar src={post.userImage || "/avatar-1.png"} alt={post.userName || "User"} />
+                    <div>
+                      <b className="block">{post.userName || "Unknown user"}</b>
+                      <span className="block mt-1 text-sm text-slate-500">@{(post.userName || "user").toLowerCase().replace(/\s+/g, ".")} · {formatRelativeTime(post.createdAt)}</span>
+                    </div>
+                    <MoreHorizontal className="ml-auto text-slate-500" />
+                  </div>
+
+                  <button
+                    onClick={() => setSelectedPost(post)}
+                    className="block w-full cursor-pointer text-left hover:opacity-90 transition"
+                  >
+                    <p className="leading-relaxed hover:text-[#1f4d38]">{post.content || ""}</p>
+                  </button>
+
+                  {imageList.length > 0 && (
+                    <button
+                      onClick={() => setSelectedPost(post)}
+                      className="mt-3 block w-full overflow-hidden rounded-2xl border border-[#edf2ee] bg-[#f5f7f5] cursor-pointer hover:opacity-90 transition"
+                    >
+                      {imageList.length === 1 ? (
+                        <img src={imageList[0]} alt="Post" className="h-80 w-full object-cover rounded-[13px]" />
+                      ) : (
+                        <div className="grid grid-cols-2 gap-1">
+                          {imageList.slice(0, 4).map((image, index) => (
+                            <div
+                              key={`${postId}-image-${index}`}
+                              className={
+                                imageList.length === 3 && index === 2
+                                  ? "col-span-2 h-48"
+                                  : "h-40"
+                              }
+                            >
+                              <img src={image} alt={`Post ${index + 1}`} className="h-full w-full object-cover" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </button>
+                  )}
+
+                  <div className="flex gap-5 pt-4">
+                    <button
+                      className={`flex items-center gap-1.5 ${
+                        (postLikes[postId]?.hasLiked ?? isLiked) ? "text-[#df4059]" : "text-slate-500"
+                      }`}
+                      onClick={() => handleLike(post)}
+                      type="button"
+                    >
+                      <Heart className="w-5 h-5" /> {postLikes[postId]?.likes ?? post.likes ?? 0}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCommentingId(commentingId === postId ? null : postId)}
+                      className="flex items-center gap-1.5 text-slate-500"
+                    >
+                      <MessageCircle className="w-5 h-5" />
+                      {post.comments ?? 0}
+                    </button>
+                    <button type="button" onClick={() => handleShare(post)} className="flex items-center gap-1.5 text-slate-500">
+                      <Send className="w-5 h-5" />
+                      Share
+                    </button>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <button onClick={() => setSelectedPost(post)} className="text-sm font-medium text-emerald-700 hover:text-emerald-800">View post</button>
+                    <span className="text-xs text-slate-500">{post.shares ?? 0} shares</span>
+                  </div>
+
+                  {commentingId === postId && (
+                    <div className="mt-3 rounded-2xl border border-[#edf2ee] bg-[#f7faf7] p-3">
+                      <textarea
+                        value={commentDrafts[postId] ?? ""}
+                        onChange={(event) =>
+                          setCommentDrafts((current) => ({
+                            ...current,
+                            [postId]: event.target.value,
+                          }))
+                        }
+                        rows={3}
+                        placeholder="Write a comment..."
+                        className="w-full rounded-xl border border-[#dfe9df] bg-white px-3 py-2 text-sm text-[#111827] outline-none ring-0 placeholder:text-[#7b867d]"
+                      />
+                      <div className="mt-2 flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          className="rounded-full border border-[#dfe9df] px-3 py-1.5 text-sm text-[#1d2c23]"
+                          onClick={() => setCommentingId(null)}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-full bg-emerald-700 px-4 py-1.5 text-sm font-medium text-white"
+                          onClick={() => handleComment(post)}
+                        >
+                          Comment
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </Section>
+
+      {selectedPost && (
+        <PostDetailModal
+          post={selectedPost}
+          onClose={() => setSelectedPost(null)}
+          sessionUserId={sessionUserId}
+        />
+      )}
+    </div>
+  );
+}

@@ -8,7 +8,8 @@ import { useModalHistory } from "./use-modal-history";
 import { createClientNotification } from "@/lib/notifications-client";
 import { ShareModal } from "./share-modal";
 import { PostActionBar } from "./post-action-bar";
-import { FollowButtons, PostMenu, VerifiedBadge, n } from "./post-extras";
+import { PostMenu, VerifiedBadge, n } from "./post-extras";
+import { PostFollowButtons } from "./post-follow-buttons";
 
 type CommentReply = {
   _id?: string;
@@ -990,7 +991,7 @@ export function PostDetailModal({
         />
 
         <div className="min-w-0 flex-1">
-          {/* Name + dummy Follow / Add netizen buttons */}
+          {/* Name + Follow (blue) / Add netizen (sends a real request) */}
           <div className="flex items-center gap-2">
             <div className="flex min-w-0 items-center gap-1">
               <p className={`min-w-0 truncate font-semibold ${ui.text}`}>
@@ -998,7 +999,7 @@ export function PostDetailModal({
               </p>
               <VerifiedBadge />
             </div>
-            <FollowButtons />
+            <PostFollowButtons userId={post.userId} viewerId={sessionUserId} />
           </div>
 
           <p className={`text-xs ${ui.muted}`}>

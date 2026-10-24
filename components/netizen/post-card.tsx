@@ -1,12 +1,13 @@
 "use client";
 
 import { Heart } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { Avatar } from "./app-shell";
 import { ShareModal } from "./share-modal";
 import { PostActionBar } from "./post-action-bar";
-import { FollowButtons, PostMenu, VerifiedBadge, n } from "./post-extras";
+import { PostMenu, VerifiedBadge, n } from "./post-extras";
+import { PostFollowButtons } from "./post-follow-buttons";
 import type { FeedPost } from "./feed";
 
 // reactions = { [userId]: emoji }
@@ -117,6 +118,8 @@ export function PostCard({
   onHandleComment,
   bookmarkedIds,
   onBookmark,
+  hideFollow,
+  menuSlot,
 }: {
   post: FeedPost;
   postId: string;
@@ -144,6 +147,10 @@ export function PostCard({
   onHandleComment: (post: FeedPost) => void;
   bookmarkedIds?: Set<string>;
   onBookmark?: (post: FeedPost) => void;
+  /** hide the Follow / Add buttons (used on profile pages) */
+  hideFollow?: boolean;
+  /** replaces the 3-dot menu (used for edit / delete on your own posts) */
+  menuSlot?: ReactNode;
 }) {
   const [showReactions, setShowReactions] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
@@ -326,7 +333,7 @@ export function PostCard({
         </button>
 
         <div className="min-w-0 flex-1">
-          {/* Name + dummy Follow / Add netizen buttons */}
+          {/* Name + Follow (blue) / Add netizen (sends a real request) */}
           <div className="flex items-center gap-2">
             <div className="flex min-w-0 items-center gap-1">
               <button
@@ -341,7 +348,9 @@ export function PostCard({
               <VerifiedBadge />
             </div>
 
-            <FollowButtons />
+            {!hideFollow && (
+              <PostFollowButtons userId={post.userId} viewerId={sessionUserId} />
+            )}
           </div>
 
           <button
@@ -355,7 +364,7 @@ export function PostCard({
           </button>
         </div>
 
-        <PostMenu label="Post options" />
+        {menuSlot ?? <PostMenu label="Post options" />}
       </div>
 
       {/* Sharer description - above reshare indicator */}

@@ -6,8 +6,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Avatar } from "./app-shell";
 import { ShareModal } from "./share-modal";
 import { PostActionBar } from "./post-action-bar";
-import { PostMenu, VerifiedBadge, n } from "./post-extras";
-import { PostFollowButtons } from "./post-follow-buttons";
+import { PostMenu, n } from "./post-extras";
+import { AuthorBadge, PostFollowButtons, proHint } from "./post-follow-buttons";
 import type { FeedPost } from "./feed";
 
 // reactions = { [userId]: emoji }
@@ -345,11 +345,11 @@ export function PostCard({
                   {post.userName || "Unknown user"}
                 </b>
               </button>
-              <VerifiedBadge />
+              <AuthorBadge userId={post.userId} viewerId={sessionUserId} isPro={proHint(post)} />
             </div>
 
             {!hideFollow && (
-              <PostFollowButtons userId={post.userId} viewerId={sessionUserId} />
+              <PostFollowButtons userId={post.userId} viewerId={sessionUserId} isPro={proHint(post)} />
             )}
           </div>
 
@@ -591,7 +591,12 @@ export function PostCard({
                   <span className="truncate">
                     {topComment.comment?.userName || "Unknown user"}
                   </span>
-                  <VerifiedBadge size={13} />
+                  <AuthorBadge
+                    userId={topComment.comment?.userId}
+                    viewerId={sessionUserId}
+                    isPro={proHint(topComment.comment)}
+                    size={13}
+                  />
                 </span>
                 <span className="line-clamp-2 break-words text-[14px] leading-5 text-[#15271d] dark:text-[#e6ece9]">
                   {topComment.comment?.content}

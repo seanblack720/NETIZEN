@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, X, ChevronDown } from "lucide-react";
+import { X, ChevronDown, Star } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PostImageGrid } from "./post-image-grid";
 import { ReplyModal } from "./reply-modal";
@@ -8,8 +8,8 @@ import { useModalHistory } from "./use-modal-history";
 import { createClientNotification } from "@/lib/notifications-client";
 import { ShareModal } from "./share-modal";
 import { PostActionBar } from "./post-action-bar";
-import { PostMenu, VerifiedBadge, n } from "./post-extras";
-import { PostFollowButtons } from "./post-follow-buttons";
+import { PostMenu, n } from "./post-extras";
+import { AuthorBadge, PostFollowButtons, proHint } from "./post-follow-buttons";
 
 type CommentReply = {
   _id?: string;
@@ -976,6 +976,104 @@ export function PostDetailModal({
     }
   }
 
+  /* =========================================================
+     Comment highlight button with long-press emoji picker
+     Same pattern as ReplyRow in reply-modal.tsx.
+  ========================================================== */
+  function CommentHighlightButton({
+    commentId,
+    isLiked,
+    likes,
+    onHighlight,
+  }: {
+    commentId: string;
+    isLiked: boolean;
+    likes: number;
+    onHighlight: () => void;
+  }) {
+    const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const longPressed = useRef(false);
+    const [pickerOpen, setPickerOpen] = useState(false);
+    const [reaction, setReaction] = useState<{ emoji: string; label: string } | null>(null);
+
+    const clearTimer = () => {
+      if (holdTimer.current) clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+    };
+    useEffect(() => clearTimer, []);
+
+    const startPress = () => {
+      longPressed.current = false;
+      clearTimer();
+      holdTimer.current = setTimeout(() => {
+        longPressed.current = true;
+        setPickerOpen(true);
+      }, 450);
+    };
+
+    const handleClick = () => {
+      if (longPressed.current) {
+        longPressed.current = false;
+        return;
+      }
+      onHighlight();
+    };
+
+    const pickReaction = (option: { emoji: string; label: string }) => {
+      setPickerOpen(false);
+      setReaction(option);
+      onHighlight();
+    };
+
+    const active = isLiked || !!reaction;
+
+    return (
+      <div className="relative">
+        <button
+          type="button"
+          onPointerDown={startPress}
+          onPointerUp={clearTimer}
+          onPointerLeave={clearTimer}
+          onPointerCancel={clearTimer}
+          onContextMenu={(e) => e.preventDefault()}
+          onClick={handleClick}
+          aria-label="Highlight (hold for reactions)"
+          className={`select-none [-webkit-touch-callout:none] text-xs font-semibold transition ${
+            active ? "text-[#df4059]" : ""
+          }`}
+        >
+          {reaction ? reaction.label : "Highlight"}
+        </button>
+
+        {pickerOpen && (
+          <>
+            <button
+              type="button"
+              aria-label="Close reactions"
+              tabIndex={-1}
+              onClick={() => setPickerOpen(false)}
+              className="fixed inset-0 z-10 cursor-default bg-transparent"
+            />
+            <div
+              className="absolute bottom-full left-0 z-20 mb-2 flex items-center gap-1 rounded-full border p-1.5 shadow-[0_10px_30px_rgba(15,39,28,0.2)] dark:bg-[#18231f]"
+            >
+              {reactionOptions.map((option) => (
+                <button
+                  key={option.label}
+                  type="button"
+                  onClick={() => pickReaction(option)}
+                  className="grid h-9 w-9 place-items-center rounded-full text-[22px] leading-none transition hover:scale-125 active:scale-95 dark:hover:bg-[#1f332b]"
+                >
+                  {option.emoji}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className={`fixed inset-0 z-50 flex flex-col ${ui.page} ${ui.text}`}>
       {/* =========================================================
@@ -997,9 +1095,17 @@ export function PostDetailModal({
               <p className={`min-w-0 truncate font-semibold ${ui.text}`}>
                 {post.userName}
               </p>
-              <VerifiedBadge />
+              <AuthorBadge
+                userId={post.userId}
+                viewerId={sessionUserId}
+                isPro={proHint(post)}
+              />
             </div>
-            <PostFollowButtons userId={post.userId} viewerId={sessionUserId} />
+            <PostFollowButtons
+              userId={post.userId}
+              viewerId={sessionUserId}
+              isPro={proHint(post)}
+            />
           </div>
 
           <p className={`text-xs ${ui.muted}`}>
@@ -1230,7 +1336,7 @@ export function PostDetailModal({
                         <div className={`rounded-2xl px-3 py-2 ${ui.bubble}`}>
                           <p className={`flex items-center gap-1 text-[13px] font-semibold ${ui.text}`}>
                             {comment.userName}
-                            <VerifiedBadge size={13} />
+                            <AuthorBadge userId={comment.userId} viewerId={sessionUserId} isPro={proHint(comment)} size={13} />
                           </p>
                           <p className={`whitespace-pre-wrap break-words text-[14px] leading-5 ${ui.text}`}>
                             {comment.content}
@@ -1241,13 +1347,13 @@ export function PostDetailModal({
                           <span
                             className={`absolute -bottom-2.5 right-2 flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] shadow-sm ${ui.border} ${ui.page} ${ui.muted}`}
                           >
-                            <Heart size={11} className="fill-[#f43f68] text-[#f43f68]" />
+                            <Star size={11} className="fill-[#df4059] text-[#df4059]" />
                             {commentLikes}
                           </span>
                         )}
                       </div>
 
-                      {/* Time · Like · Reply · menu */}
+                      {/* Time · Highlight · Reply · menu */}
                       <div
                         className={`flex items-center gap-4 px-3 text-xs font-semibold ${ui.muted} ${
                           commentLikes > 0 ? "mt-3" : "mt-1"
@@ -1257,13 +1363,12 @@ export function PostDetailModal({
                           {formatRelativeTime(comment.createdAt)}
                         </span>
 
-                        <button
-                          type="button"
-                          onClick={() => handleCommentReaction(commentId)}
-                          className={isCommentLiked ? "text-[#df4059]" : ""}
-                        >
-                          Like
-                        </button>
+                        <CommentHighlightButton
+                          commentId={commentId}
+                          isLiked={isCommentLiked}
+                          likes={commentLikes}
+                          onHighlight={() => handleCommentReaction(commentId)}
+                        />
 
                         <button
                           type="button"
@@ -1301,7 +1406,7 @@ export function PostDetailModal({
                               <div className={`rounded-2xl px-3 py-2 ${ui.bubble}`}>
                                 <p className={`flex items-center gap-1 text-[12px] font-semibold ${ui.text}`}>
                                   {firstReply.userName}
-                                  <VerifiedBadge size={12} />
+                                  <AuthorBadge userId={firstReply.userId} viewerId={sessionUserId} isPro={proHint(firstReply)} size={12} />
                                 </p>
                                 <p className={`whitespace-pre-wrap break-words text-[13px] leading-5 ${ui.text}`}>
                                   {firstReply.replyTo?.userName && (
@@ -1317,7 +1422,7 @@ export function PostDetailModal({
                                 <span
                                   className={`absolute -bottom-2.5 right-2 flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] shadow-sm ${ui.border} ${ui.page} ${ui.muted}`}
                                 >
-                                  <Heart size={10} className="fill-[#f43f68] text-[#f43f68]" />
+                                  <Star size={10} className="fill-[#df4059] text-[#df4059]" />
                                   {firstReplyLikes}
                                 </span>
                               )}
@@ -1332,21 +1437,12 @@ export function PostDetailModal({
                                 {formatRelativeTime(firstReply.createdAt)}
                               </span>
 
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  firstReply._id && handleLikeReply(String(firstReply._id))
-                                }
-                                className={
-                                  !!sessionUserId &&
-                                  Array.isArray(firstReply.likedBy) &&
-                                  firstReply.likedBy.includes(sessionUserId)
-                                    ? "text-[#df4059]"
-                                    : ""
-                                }
-                              >
-                                Like
-                              </button>
+                              <CommentHighlightButton
+                                commentId={String(firstReply._id ?? "")}
+                                isLiked={!!sessionUserId && Array.isArray(firstReply.likedBy) && firstReply.likedBy.includes(sessionUserId)}
+                                likes={firstReplyLikes}
+                                onHighlight={() => firstReply._id && handleLikeReply(String(firstReply._id))}
+                              />
 
                               <button
                                 type="button"

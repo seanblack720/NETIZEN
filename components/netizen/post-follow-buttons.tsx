@@ -3,116 +3,212 @@
 import { useEffect, useState } from "react";
 import { Loader2, UserCheck, UserPlus } from "lucide-react";
 
+import { VerifiedBadge } from "./post-extras";
+
 /* =========================================================
-   FOLLOW (blue) + ADD NETIZEN buttons for a post author.
-   Used in the post card and in the post page, and they talk to
-   the same routes as the profile and the People panel:
+   PRO-ONLY VERIFIED BADGE + FOLLOW, and ADD NETIZEN for everyone.
+
+   - The verified check and the Follow button only show when the author
+     has isPro = true on their user document.
+   - Add (netizen request) shows for everyone except on your own posts.
+
+   Where isPro comes from: if the post / comment already carries
+   `userIsPro` (or `authorIsPro`) that is used straight away. Otherwise it
+   is read once per person from GET /api/profile?userId=... (targetUser.isPro,
+   the same route the profile page uses) and shared by every card, so five
+   posts from the same person cost one request.
+
+   Routes used:
      POST  /api/follows            { userId }              toggle follow
      GET   /api/netizen-requests?userId=...                request status
      POST  /api/netizen-requests   { toUserId }            send request
      PATCH /api/netizen-requests   { requestId, action }   cancel / accept
-   The status of each author is fetched once and shared, so a feed with
-   many posts from the same person only asks the server one time, and
-   pressing a button updates every card of that person.
 ========================================================== */
 
 type Netizen = "none" | "sent" | "received" | "accepted";
 
-type Relation = {
+type Snapshot = {
+  /** null = not known yet (nothing is shown while we wait, so no flicker) */
+  isPro: boolean | null;
   following: boolean;
   netizen: Netizen;
   requestId: string | null;
 };
 
-const EMPTY: Relation = { following: false, netizen: "none", requestId: null };
+type Entry = {
+  snap: Snapshot;
+  profile: Promise<void> | null;
+  netizen: Promise<void> | null;
+  subs: Set<() => void>;
+};
 
-const cache = new Map<string, Promise<Relation>>();
-const subscribers = new Map<string, Set<(relation: Relation) => void>>();
+const EMPTY: Snapshot = { isPro: null, following: false, netizen: "none", requestId: null };
 
-const keyOf = (viewerId: string, userId: string) => `${viewerId}:${userId}`;
+const store = new Map<string, Entry>();
+const keyOf = (viewer: string, user: string) => `${viewer || "anon"}:${user}`;
 
-async function fetchRelation(viewerId: string, userId: string): Promise<Relation> {
-  const id = encodeURIComponent(userId);
+function entryFor(key: string): Entry {
+  let entry = store.get(key);
+  if (!entry) {
+    entry = { snap: EMPTY, profile: null, netizen: null, subs: new Set() };
+    store.set(key, entry);
+  }
+  return entry;
+}
 
-  const [requestRes, profileRes] = await Promise.all([
-    fetch(`/api/netizen-requests?userId=${id}`, { credentials: "include", cache: "no-store" }).catch(() => null),
-    fetch(`/api/profile?userId=${id}`, { credentials: "include", cache: "no-store" }).catch(() => null),
-  ]);
+function patch(key: string, partial: Partial<Snapshot>) {
+  const entry = entryFor(key);
+  entry.snap = { ...entry.snap, ...partial };
+  entry.subs.forEach((notify) => notify());
+}
 
-  let netizen: Netizen = "none";
-  let requestId: string | null = null;
+/** true, "true" and 1 all count as Pro (a value typed by hand in Compass is a string) */
+function asBool(value: unknown): boolean {
+  return value === true || value === 1 || (typeof value === "string" && value.trim().toLowerCase() === "true");
+}
 
-  if (requestRes?.ok) {
-    const data = await requestRes.json().catch(() => null);
-    const doc = data?.request;
+/** Reads a Pro flag a route may already have put on a post or comment */
+export function proHint(source: unknown): boolean | undefined {
+  const s = source as Record<string, unknown> | null | undefined;
+  const value = s?.userIsPro ?? s?.authorIsPro;
+  return value === undefined || value === null ? undefined : asBool(value);
+}
 
-    if (doc) {
-      requestId = String(doc._id ?? doc.id ?? "") || null;
+function loadProfile(key: string, user: string) {
+  const entry = entryFor(key);
+  if (entry.profile) return;
 
-      if (doc.status === "accepted") netizen = "accepted";
-      else if (doc.status === "pending") {
-        netizen = String(doc.fromUserId) === String(viewerId) ? "sent" : "received";
+  entry.profile = fetch(`/api/profile?userId=${encodeURIComponent(user)}`, {
+    credentials: "include",
+    cache: "no-store",
+  })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((data) => {
+      patch(key, {
+        isPro: asBool(data?.targetUser?.isPro),
+        following: !!data?.isFollowing,
+      });
+    })
+    .catch(() => {
+      // unknown means "not Pro": the badge and Follow stay hidden
+      if (entryFor(key).snap.isPro === null) patch(key, { isPro: false });
+    });
+}
+
+function loadNetizen(key: string, viewer: string, user: string) {
+  const entry = entryFor(key);
+  if (entry.netizen) return;
+
+  entry.netizen = fetch(`/api/netizen-requests?userId=${encodeURIComponent(user)}`, {
+    credentials: "include",
+    cache: "no-store",
+  })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((data) => {
+      const doc = data?.request;
+      if (!doc) return;
+
+      const requestId = String(doc._id ?? doc.id ?? "") || null;
+      if (doc.status === "accepted") {
+        patch(key, { netizen: "accepted", requestId });
+      } else if (doc.status === "pending") {
+        patch(key, {
+          netizen: String(doc.fromUserId) === String(viewer) ? "sent" : "received",
+          requestId,
+        });
       }
+    })
+    .catch(() => {});
+}
+
+function useAuthor({
+  userId,
+  viewerId,
+  hint,
+  buttons,
+}: {
+  userId?: string | null;
+  viewerId?: string | null;
+  hint?: boolean;
+  buttons: boolean;
+}) {
+  const user = userId ? String(userId) : "";
+  const viewer = viewerId ? String(viewerId) : "";
+  const key = keyOf(viewer, user);
+
+  const [snap, setSnap] = useState<Snapshot>(() => entryFor(key).snap);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const entry = entryFor(key);
+    const sync = () => setSnap(entry.snap);
+    entry.subs.add(sync);
+    sync();
+
+    if (typeof hint === "boolean" && entry.snap.isPro !== hint) {
+      patch(key, { isPro: hint });
     }
-  }
 
-  let following = false;
-  if (profileRes?.ok) {
-    const data = await profileRes.json().catch(() => null);
-    following = !!data?.isFollowing;
-  }
+    // the badge only needs isPro; the buttons also need "do I follow them"
+    const needProfile = typeof hint !== "boolean" || (buttons && !!viewer);
+    if (needProfile) loadProfile(key, user);
 
-  return { following, netizen, requestId };
+    if (buttons && viewer && viewer !== user) loadNetizen(key, viewer, user);
+
+    return () => {
+      entry.subs.delete(sync);
+    };
+  }, [key, user, viewer, hint, buttons]);
+
+  return { snap, key, user, viewer };
 }
 
-function publish(key: string, relation: Relation) {
-  cache.set(key, Promise.resolve(relation));
-  subscribers.get(key)?.forEach((listener) => listener(relation));
+/* =========================================================
+   Verified check: only for Pro people
+========================================================== */
+export function AuthorBadge({
+  userId,
+  viewerId,
+  isPro,
+  size,
+}: {
+  userId?: string | null;
+  viewerId?: string | null;
+  /** pass post.userIsPro / comment.userIsPro when the API already sends it */
+  isPro?: boolean;
+  size?: number;
+}) {
+  const { snap } = useAuthor({ userId, viewerId, hint: isPro, buttons: false });
+
+  if (snap.isPro !== true) return null;
+  return size ? <VerifiedBadge size={size} /> : <VerifiedBadge />;
 }
 
+/* =========================================================
+   Follow (blue, Pro only) + Add netizen (everyone)
+========================================================== */
 export function PostFollowButtons({
   userId,
   viewerId,
+  isPro,
 }: {
   /** the author of the post */
   userId?: string | null;
   /** the logged in user (null when signed out) */
   viewerId?: string | null;
+  isPro?: boolean;
 }) {
-  const target = userId ? String(userId) : "";
-  const viewer = viewerId ? String(viewerId) : "";
-  const isOwn = !!viewer && viewer === target;
+  const { snap, key, user: target, viewer } = useAuthor({
+    userId,
+    viewerId,
+    hint: isPro,
+    buttons: true,
+  });
 
-  const [relation, setRelation] = useState<Relation>(EMPTY);
   const [followBusy, setFollowBusy] = useState(false);
   const [netizenBusy, setNetizenBusy] = useState(false);
   const [failed, setFailed] = useState<"follow" | "netizen" | null>(null);
-
-  // load (once per author) and stay in sync with other cards of the same author
-  useEffect(() => {
-    if (!viewer || !target || isOwn) return;
-
-    const key = keyOf(viewer, target);
-    let cancelled = false;
-
-    let promise = cache.get(key);
-    if (!promise) {
-      promise = fetchRelation(viewer, target);
-      cache.set(key, promise);
-    }
-    promise.then((value) => {
-      if (!cancelled) setRelation(value);
-    });
-
-    const listener = (value: Relation) => setRelation(value);
-    if (!subscribers.has(key)) subscribers.set(key, new Set());
-    subscribers.get(key)!.add(listener);
-
-    return () => {
-      cancelled = true;
-      subscribers.get(key)?.delete(listener);
-    };
-  }, [viewer, target, isOwn]);
 
   // red hint for a moment when something fails
   useEffect(() => {
@@ -121,10 +217,12 @@ export function PostFollowButtons({
     return () => clearTimeout(t);
   }, [failed]);
 
+  const isOwn = !!viewer && viewer === target;
+
   // your own posts, or a post with no author id, get no buttons
   if (!target || isOwn) return null;
 
-  const key = viewer ? keyOf(viewer, target) : "";
+  const showFollow = snap.isPro === true;
 
   function needLogin() {
     window.location.assign("/login");
@@ -145,7 +243,7 @@ export function PostFollowButtons({
       });
       if (!response.ok) throw new Error("Follow failed");
       const data = await response.json().catch(() => ({}));
-      publish(key, { ...relation, following: !!data.following });
+      patch(key, { following: !!data.following });
     } catch {
       setFailed("follow");
     } finally {
@@ -164,44 +262,44 @@ export function PostFollowButtons({
 
     if (response.status === 409) {
       if (data?.message === "Already netizens.") {
-        publish(key, { ...relation, netizen: "accepted", requestId: null });
+        patch(key, { netizen: "accepted", requestId: null });
       } else if (data?.incoming) {
         // they already sent you one: you can accept it right here
-        publish(key, { ...relation, netizen: "received", requestId: data.requestId ?? null });
+        patch(key, { netizen: "received", requestId: data.requestId ?? null });
       } else {
-        publish(key, { ...relation, netizen: "sent" });
+        patch(key, { netizen: "sent" });
       }
       return;
     }
 
     if (!response.ok) throw new Error(data?.message || "Send failed");
-    publish(key, { ...relation, netizen: "sent", requestId: data.requestId ?? null });
+    patch(key, { netizen: "sent", requestId: data.requestId ?? null });
   }
 
   async function patchRequest(action: "cancel" | "accept") {
-    if (!relation.requestId) return;
+    if (!snap.requestId) return;
     const response = await fetch("/api/netizen-requests", {
       method: "PATCH",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ requestId: relation.requestId, action }),
+      body: JSON.stringify({ requestId: snap.requestId, action }),
     });
     if (!response.ok) throw new Error("Request failed");
 
-    if (action === "cancel") publish(key, { ...relation, netizen: "none", requestId: null });
-    else publish(key, { ...relation, netizen: "accepted" });
+    if (action === "cancel") patch(key, { netizen: "none", requestId: null });
+    else patch(key, { netizen: "accepted" });
   }
 
   async function onNetizenClick(e: React.MouseEvent) {
     e.stopPropagation();
     if (!viewer) return needLogin();
-    if (netizenBusy || relation.netizen === "accepted") return;
+    if (netizenBusy || snap.netizen === "accepted") return;
 
     setNetizenBusy(true);
     try {
-      if (relation.netizen === "none") await sendRequest();
-      else if (relation.netizen === "sent") await patchRequest("cancel");
-      else if (relation.netizen === "received") await patchRequest("accept");
+      if (snap.netizen === "none") await sendRequest();
+      else if (snap.netizen === "sent") await patchRequest("cancel");
+      else if (snap.netizen === "received") await patchRequest("accept");
     } catch {
       setFailed("netizen");
     } finally {
@@ -213,7 +311,7 @@ export function PostFollowButtons({
     "inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-full px-3 text-xs font-semibold leading-none transition active:scale-95 disabled:opacity-70";
 
   /* ---- Follow: blue ---- */
-  const followClass = relation.following
+  const followClass = snap.following
     ? "border border-[#1d9bf0] bg-transparent text-[#1d9bf0] dark:border-[#4db3ff] dark:text-[#4db3ff]"
     : "bg-[#1d9bf0] text-white hover:bg-[#1a8cd8]";
 
@@ -224,16 +322,16 @@ export function PostFollowButtons({
   let netizenIcon = <UserPlus size={13} />;
   let netizenTitle = "Send a netizen request";
 
-  if (relation.netizen === "sent") {
+  if (snap.netizen === "sent") {
     netizenLabel = "Requested";
     netizenTitle = "Tap to cancel your request";
     netizenClass =
       "border border-[#b9d9c6] bg-[#f0f8f3] text-[#168b45] dark:border-[#1e3a2f] dark:bg-[#143a26] dark:text-[#7ee0b0]";
-  } else if (relation.netizen === "received") {
+  } else if (snap.netizen === "received") {
     netizenLabel = "Accept";
     netizenTitle = "They sent you a request. Tap to accept";
     netizenClass = "bg-[#1c9d57] text-white hover:bg-[#168b45]";
-  } else if (relation.netizen === "accepted") {
+  } else if (snap.netizen === "accepted") {
     netizenLabel = "Netizen";
     netizenIcon = <UserCheck size={13} />;
     netizenTitle = "You are netizens";
@@ -248,27 +346,31 @@ export function PostFollowButtons({
 
   return (
     <div className="flex shrink-0 items-center gap-1.5">
-      <button
-        type="button"
-        onClick={toggleFollow}
-        disabled={followBusy}
-        className={`${base} ${failed === "follow" ? "border border-[#f3b5b0] bg-[#fff4f1] text-[#c0392b]" : followClass}`}
-      >
-        {followBusy ? (
-          <Loader2 size={13} className="animate-spin" />
-        ) : failed === "follow" ? (
-          "Try again"
-        ) : relation.following ? (
-          "Following"
-        ) : (
-          "Follow"
-        )}
-      </button>
+      {showFollow && (
+        <button
+          type="button"
+          onClick={toggleFollow}
+          disabled={followBusy}
+          className={`${base} ${
+            failed === "follow" ? "border border-[#f3b5b0] bg-[#fff4f1] text-[#c0392b]" : followClass
+          }`}
+        >
+          {followBusy ? (
+            <Loader2 size={13} className="animate-spin" />
+          ) : failed === "follow" ? (
+            "Try again"
+          ) : snap.following ? (
+            "Following"
+          ) : (
+            "Follow"
+          )}
+        </button>
+      )}
 
       <button
         type="button"
         onClick={onNetizenClick}
-        disabled={netizenBusy || relation.netizen === "accepted"}
+        disabled={netizenBusy || snap.netizen === "accepted"}
         title={netizenTitle}
         className={`${base} ${netizenClass}`}
       >

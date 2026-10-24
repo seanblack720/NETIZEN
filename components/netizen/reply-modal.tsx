@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, X } from "lucide-react";
+import { Star, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { PostMenu, VerifiedBadge, n } from "./post-extras";
 
@@ -201,7 +201,7 @@ function ReplyRow({
               {reaction ? (
                 <span className="text-xs leading-none">{reaction.emoji}</span>
               ) : (
-                <Heart size={11} className="fill-[#f43f68] text-[#f43f68]" />
+                <Star size={11} className="fill-[#df4059] text-[#df4059]" />
               )}
               {likes > 0 && likes}
             </span>
@@ -229,7 +229,7 @@ function ReplyRow({
               active ? "text-[#df4059]" : ""
             }`}
           >
-            {reaction ? reaction.label : "Like"}
+            {reaction ? reaction.label : "Highlight"}
           </button>
 
           <button
